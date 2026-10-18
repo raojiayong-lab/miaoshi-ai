@@ -335,10 +335,12 @@
   .wb-nodehead{padding-right:26px}
   .wbn-del{position:absolute;top:5px;right:5px;width:22px;height:22px;border-radius:50%;border:1px solid var(--wb-border);
     background:var(--panel);color:var(--muted);font-size:13px;line-height:1;cursor:pointer;display:flex;align-items:center;
-    justify-content:center;opacity:0;transition:opacity .15s ease,background .15s ease,color .15s ease;z-index:5;padding:0}
-  .wb-node:hover .wbn-del,.wbn-del:focus{opacity:1}
+    justify-content:center;opacity:0;transform:scale(.7);transition:opacity .15s ease,background .15s ease,color .15s ease,transform .15s var(--ease-out);z-index:5;padding:0}
+  /* v9：删除按钮「浮现+弹入」：opacity 渐显 + scale(.7)→scale(1) 回弹 */
+  .wb-node:hover .wbn-del,.wbn-del:focus{opacity:1;transform:scale(1)}
   .wbn-del:hover{background:var(--err);color:#fff;border-color:var(--err)}
-  @media(hover:none){.wbn-del{opacity:.75}}
+  /* v9：触屏无 hover，按钮常驻且直接满尺寸，避免缩着点不到 */
+  @media(hover:none){.wbn-del{opacity:.75;transform:scale(1)}}
   /* 回收站面板（脚本重现） */
   .wb-trash{position:absolute;top:58px;left:10px;z-index:12;width:284px;max-height:46%;overflow-y:auto;
     background:var(--panel);border:1px solid var(--wb-border);border-radius:12px;padding:10px;box-shadow:0 14px 36px rgba(0,0,0,.55)}
@@ -501,9 +503,12 @@
   /* 画布节点：入场（stagger 45ms）+ 悬浮 + 拖拽 */
   .wb-node{animation:nodeIn .34s var(--ease-out) backwards;animation-delay:calc(var(--i,0)*45ms)}
   @keyframes nodeIn{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}
-  .wb-node{transition:border-color var(--press), box-shadow var(--press)}
+  .wb-node{transition:border-color var(--press), box-shadow var(--press), transform var(--lift)}
   .wb-node.dragging{box-shadow:0 18px 40px rgba(0,0,0,.6);border-color:var(--teal)}
   .wb-node:hover{border-color:rgba(123,211,192,.5)}
+  /* v9：hover 上浮（仅精确指针设备；拖拽中禁用以防视觉位置与指针脱节） */
+  @media(hover:hover) and (pointer:fine){.wb-node:hover{transform:translateY(-2px)}}
+  .wb-node.dragging:hover{transform:none}
   /* API 折叠：chevron 顺滑旋转 */
   .api-chev{transition:transform .3s var(--ease-out)}
   /* 生成按钮：加载中的呼吸背景 */
@@ -624,7 +629,9 @@
   @media(hover:hover) and (pointer:fine){
     .wb-node:not(.sel):hover{border-color:#3a4358;box-shadow:0 10px 26px rgba(0,0,0,.5)}
   }
-  .wb-node.sel{box-shadow:0 0 0 1.5px var(--accent),0 14px 36px rgba(255,77,109,.18)}
+  /* v9：选中呼吸光晕。只叠 selBreathe（不重复 nodeIn——否则每次点选都会重播入场动画） */
+  .wb-node.sel{box-shadow:0 0 0 1.5px var(--accent),0 14px 36px rgba(255,77,109,.18);
+    animation:selBreathe 2.6s var(--ease-io) infinite}
   /* 节点连线箭头 */
   .wb-links marker{transition:all .2s ease}
   /* 移动端工作台 */
@@ -681,6 +688,43 @@
   .ai-loader.on{display:block}
   .ai-loader circle{transform-origin:center;animation:aiRing .9s linear infinite}
   @keyframes aiRing{to{transform:rotate(360deg)}}
+
+  /* ===== v9 动效感官层（DeepSeek 协作打磨：分组标签 / 连线流动 / 删除放回 / 微交互） ===== */
+  /* T1：AI 分组列头胶囊（薄荷系，复用 teal token，不引入新色） */
+  .wb9-grouplabel{position:absolute;z-index:2;pointer-events:none;border:1px solid var(--teal);
+    background:rgba(22,40,42,.82);color:var(--teal);font-size:11px;font-weight:700;letter-spacing:.05em;
+    padding:3px 10px;border-radius:999px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);white-space:nowrap}
+  @keyframes wb9GlIn{from{opacity:0;transform:translateY(-6px) scale(.9)}to{opacity:1;transform:translateY(0) scale(1)}}
+  .wb9-gl-in{animation:wb9GlIn .34s var(--ease-out) both}
+  /* T2：连线流动（dasharray 周期 11，-22 两周位移无缝循环；alt 放慢区分主次流向） */
+  .wb9-flow{animation:wb9Dash 1.4s linear infinite}
+  .wb9-flow.alt{animation-duration:2.2s}
+  @keyframes wb9Dash{to{stroke-dashoffset:-22}}
+  /* T3：删除消散 / 放回回弹（.wb-node. 前缀 + 位于 .wb-node.sel 之后，压过选中呼吸） */
+  .wb-node.wb9-vanish{animation:wb9Vanish .28s var(--ease-out) forwards}
+  @keyframes wb9Vanish{to{opacity:0;transform:scale(.7) translateY(8px);border-color:var(--err)}}
+  .wb-node.wb9-dropin{animation:wb9Dropin .38s cubic-bezier(.34,1.56,.64,1)}
+  @keyframes wb9Dropin{from{opacity:0;transform:translateY(-16px) scale(.94)}to{opacity:1;transform:none}}
+  /* T4：选中呼吸光晕关键帧（两端保留 1.5px 实描边，任意时刻描边不丢） */
+  @keyframes selBreathe{
+    0%{box-shadow:0 0 0 1.5px var(--accent),0 14px 36px rgba(255,77,109,.18)}
+    50%{box-shadow:0 0 0 1.5px var(--accent),0 14px 44px rgba(255,77,109,.34)}
+    100%{box-shadow:0 0 0 1.5px var(--accent),0 14px 36px rgba(255,77,109,.18)}
+  }
+  /* T4：框选命中脉冲（起始态即当前态，只写 30% 放大高亮与归位） */
+  .wb-node.wb9-beat{animation:wb9Beat .26s var(--ease-out)}
+  @keyframes wb9Beat{30%{transform:scale(1.025);border-color:var(--accent)}to{transform:none}}
+  /* T4：空画布呼吸引导（删完镜头后的空态，静态流内嵌，不拦截交互） */
+  .wb9-empty{text-align:center;padding:26px 0 4px}
+  .wb9-empty-ring{width:120px;height:120px;margin:0 auto;border-radius:50%;border:1px solid var(--teal);
+    opacity:.5;animation:emptyBreathe 2.8s var(--ease-io) infinite}
+  @keyframes emptyBreathe{0%{transform:scale(.92);opacity:.35}50%{transform:scale(1.04);opacity:.6}100%{transform:scale(.92);opacity:.35}}
+  .wb9-empty-txt{color:var(--muted);font-size:13px;margin-top:14px;letter-spacing:.04em}
+  /* T4：toast 成败分级（无 t- 类时外观与升级前完全一致） */
+  .toast.t-ok{border-left:3px solid var(--teal)}
+  .toast.t-err{border-left:3px solid var(--err)}
+  .toast.t-ok::before{content:"✓ ";color:var(--teal);font-weight:800}
+  .toast.t-err::before{content:"! ";color:var(--err);font-weight:800}
 
   @media (prefers-reduced-motion: reduce){
     *{transition:none!important;animation:none!important}
@@ -1963,9 +2007,13 @@ function drawLinks(box){
   var d='';
   var showVideo=box._wb._rows!=='script';
   var showImage=box._wb._rows!=='script';
-  function bez(x1,y1,x2,y2,color,w,dash){
+  /* v9：连线统一挂 wb9-flow 类，由 CSS 驱动极慢虚线流动表达数据流向；
+     非虚线补 5 6 周期，alt 保持 4 3 并额外加 alt 类走更慢节奏 */
+  function bez(x1,y1,x2,y2,color,w,dash,isAlt){
     var mx=(x1+x2)/2;
-    return '<path d="M '+x1+' '+y1+' C '+mx+' '+y1+', '+mx+' '+y2+', '+x2+' '+y2+'" fill="none" stroke="'+color+'" stroke-width="'+w+'"'+(dash?' stroke-dasharray="4 3"':'')+'/>';
+    var cls='wb9-flow'+(isAlt?' alt':'');
+    var da=dash?'4 3':'5 6';
+    return '<path class="'+cls+'" d="M '+x1+' '+y1+' C '+mx+' '+y1+', '+mx+' '+y2+', '+x2+' '+y2+'" fill="none" stroke="'+color+'" stroke-width="'+w+'" stroke-dasharray="'+da+'"/>';
   }
   for(var i=0;i<n;i++){
     var s=state.shots[i];
@@ -1976,13 +2024,13 @@ function drawLinks(box){
       var ib=_nodeBox(box,'image',s.no);
       if(ib){
         var iTopY=ib.y, iMidX=ib.x+ib.w/2;
-        d+='<line x1="'+iMidX+'" y1="'+sMidY+'" x2="'+iMidX+'" y2="'+iTopY+'" stroke="rgba(123,211,192,.5)" stroke-width="1.5"/>';
+        d+='<line class="wb9-flow" x1="'+iMidX+'" y1="'+sMidY+'" x2="'+iMidX+'" y2="'+iTopY+'" stroke="rgba(123,211,192,.5)" stroke-width="1.5" stroke-dasharray="5 6"/>';
       }
       if(showVideo){
         var vb=_nodeBox(box,'video',s.no);
         if(vb){
           var iBotY=(ib?ib.y+ib.h:0), vTopY=vb.y, vMidX=vb.x+vb.w/2;
-          d+='<line x1="'+vMidX+'" y1="'+iBotY+'" x2="'+vMidX+'" y2="'+vTopY+'" stroke="rgba(123,211,192,.5)" stroke-width="1.5"/>';
+          d+='<line class="wb9-flow" x1="'+vMidX+'" y1="'+iBotY+'" x2="'+vMidX+'" y2="'+vTopY+'" stroke="rgba(123,211,192,.5)" stroke-width="1.5" stroke-dasharray="5 6"/>';
         }
       }
     }
@@ -1990,14 +2038,14 @@ function drawLinks(box){
       s.alts.forEach(function(alt,ai){
         var ab=_nodeBox(box,'alt',s.no,ai);
         if(!ab) return;
-        d+=bez(sRightX, sMidY, ab.x, ab.y+ab.h/2, 'rgba(255,77,109,.55)', 1.5, true);
+        d+=bez(sRightX, sMidY, ab.x, ab.y+ab.h/2, 'rgba(255,77,109,.55)', 1.5, true, true);
       });
     }
   }
   for(var i=0;i<n-1;i++){
     var a=_nodeBox(box,'script',state.shots[i].no);
     var b=_nodeBox(box,'script',state.shots[i+1].no);
-    if(a&&b) d+=bez(a.x+a.w, a.y+a.h/2, b.x, b.y+b.h/2, 'rgba(86,96,114,.6)', 1.5, false);
+    if(a&&b) d+=bez(a.x+a.w, a.y+a.h/2, b.x, b.y+b.h/2, 'rgba(86,96,114,.6)', 1.5, false, false);
   }
   svg.innerHTML=d;
 }
@@ -2026,12 +2074,38 @@ function drawMinimap(box){
     if(type==='alt'){ ctx.fillStyle='rgba(255,77,109,.4)'; } else { ctx.fillStyle='#2A3040'; }
     ctx.fillRect(nd.offsetLeft*sx, nd.offsetTop*sy, nd.offsetWidth*sx, nd.offsetHeight*sy);
   });
+  /* v9：hover 联动：_miniHi 存当前悬停节点的 data-k，命中则电粉描边其缩略矩形；
+     放在视口框之前画，保证视口框始终压在最上层不被遮挡 */
+  var hi=box._wb&&box._wb._miniHi;
+  if(hi){
+    var hnd=box.querySelector('.wb-node[data-k="'+hi+'"]');
+    if(hnd){
+      ctx.strokeStyle='#FF4D6D'; ctx.lineWidth=1.5;
+      ctx.strokeRect(hnd.offsetLeft*sx, hnd.offsetTop*sy, hnd.offsetWidth*sx, hnd.offsetHeight*sy);
+    }
+  }
   /* 视口框 */
   var st=box._wb;
   var vx=(-st.tx/st.scale)*sx, vy=(-st.ty/st.scale)*sy;
   var vw=(box.clientWidth/st.scale)*sx, vh=(box.clientHeight/st.scale)*sy;
   ctx.strokeStyle='#FF4D6D'; ctx.lineWidth=1;
   ctx.strokeRect(vx,vy,vw,vh);
+}
+/* v9：小地图 hover 联动。box 级 pointerover 委托维护 _miniHi：
+   移到节点上取 data-k，移到空白时 closest 返回 null、k 为 null 自动清除，无需 pointerout；
+   仅在值变化时重绘，避免高频 pointerover 反复刷 canvas */
+function wb9BindMiniHi(box){
+  if(!box||box._wbMiniHiBound) return;
+  box._wbMiniHiBound=true;
+  box.addEventListener('pointerover',function(e){
+    var nd=e.target&&e.target.closest?e.target.closest('.wb-node'):null;
+    var k=nd?nd.getAttribute('data-k'):null;
+    if(!box._wb) return;
+    if(k===box._wb._lastMiniHi) return;
+    box._wb._lastMiniHi=k;
+    box._wb._miniHi=k;
+    drawMinimap(box);
+  });
 }
 /* 变体节点 HTML（DS-27 替代方案分支） */
 function altNodeHtml(s, altIdx, colX, collapsed){
@@ -2052,17 +2126,23 @@ function altNodeHtml(s, altIdx, colX, collapsed){
   return '<div class="wb-node alt'+(collapsed?' collapsed':'')+'" data-type="alt" data-i="'+s.no+'" data-alt="'+altIdx+'" data-k="s'+s.no+'_alt'+altIdx+'" data-st="done" style="width:'+(collapsed?70:220)+'px">'
     +inner+'</div>';
 }
+/* v9 模块级状态：undo 计数（删除消散动画期间若被打断，放弃 300ms 后的延迟删除） */
+var WB9_DEL_UNDO=0;
+/* v9：空画布呼吸引导模板（纯静态文本，不含动态变量，无需 esc） */
+var WB9_EMPTY_HTML='<div class="wb9-empty"><div class="wb9-empty-ring"></div><div class="wb9-empty-txt">先生成分镜，画布会自动排好</div></div>';
 function renderCanvas(reset){
   var box=document.getElementById('panelCanvas'); if(!box) return;
   var list=state.shots||[];
   if(!list.length){
     box._wb=null;
-    box.innerHTML='<p class="cv-empty">画布是空的。在右侧贴一段小说 → 点「生成分镜提示词」，这里会出现 脚本 → 出图提示词 → 视频提示词 的文本管道，每段提示词都能一键复制去即梦 / 可灵。</p>';
+    state._aiGroups=null; /* 空画布 → AI 分组标签失去意义 */
+    box.innerHTML='<div class="cv-empty">'+WB9_EMPTY_HTML
+      +'<p style="margin:16px 0 0;font-size:13px;line-height:1.7;color:var(--muted)">画布是空的。在右侧贴一段小说 → 点「生成分镜提示词」，这里会出现 脚本 → 出图提示词 → 视频提示词 的文本管道，每段提示词都能一键复制去即梦 / 可灵。</p></div>';
     return;
   }
   var mob=isMobile();
   var prev=box._wb||{};
-  if(reset) WB_POS={}; /* 全新生成 → 清空旧布局，回归默认列位 */
+  if(reset){ WB_POS={}; state._aiGroups=null; } /* 全新生成 → 清空旧布局与分组标签，回归默认列位 */
   /* 视图状态跨重绘保留（行折叠/换运镜/加变体不再跳视图）；reset=true 仅用于全新生成 */
   var keep=prev.tx!=null&&!reset;
   box._wb={
@@ -2134,6 +2214,8 @@ function renderCanvas(reset){
     +'</div>';
   bindWorkbench();
   layoutColumns(box);
+  /* v9：AI 排版后的分组标签跨重绘保持（删除/换行/放回后按新几何重算） */
+  if(state._aiGroups&&state._aiGroups.length&&typeof wb9RenderGroupLabels==='function') wb9RenderGroupLabels(box);
   if(mob){ box._wb.tx=20; box._wb.ty=20; box._wb.scale=1; }
   applyWbTransform(box);
   drawLinks(box);
@@ -2252,8 +2334,42 @@ function syncOutputPanel(){
     if(typeof renderAdvice==='function') renderAdvice();
   }catch(_){}
 }
-function wbDeleteShots(box,nos){
+/* v9 删除镜头：noAnim!==1 时先播消散动画（批量错峰 i*45ms），300ms 后以 noAnim=1 递归执行真实删除；
+   动画期间再次触发（_delBusy=1）直接无动画执行，不排队不叠加；
+   undo 加固：300ms 内按 Ctrl+Z → WB9_DEL_UNDO 计数变化 → 放弃本次删除，防止误删刚撤销回来的镜头 */
+function wbDeleteShots(box,nos,noAnim){
   if(!nos||!nos.length) return;
+  /* 防重入：上一次消散动画还没播完，本次直接走无动画删除，不排队不叠加 */
+  if(noAnim!==1&&box._wb&&box._wb._delBusy===1) noAnim=1;
+  if(noAnim!==1){
+    /* 按 nos 顺序查找对应 script 节点，查得到几个算几个 */
+    var hits=[];
+    nos.forEach(function(no){
+      var el=box.querySelector('.wb-node[data-type="script"][data-i="'+no+'"]');
+      if(el) hits.push(el);
+    });
+    if(!hits.length){
+      /* 一个都没查到（比如节点已被替换），退回无动画删除 */
+      wbDeleteShots(box,nos,1);
+      return;
+    }
+    /* 批量错峰：第 i 个延迟 i*45ms，与 nodeIn 入场节奏一致 */
+    hits.forEach(function(el,i){
+      el.classList.add('wb9-vanish');
+      el.style.animationDelay=(i*45)+'ms';
+    });
+    if(box._wb) box._wb._delBusy=1;
+    var seqUndo=WB9_DEL_UNDO; /* 快照撤销计数 */
+    /* 300ms 覆盖最长延迟 + 动画时长（.28s），保证全部播完再动数据 */
+    setTimeout(function(){
+      if(box._wb) box._wb._delBusy=0;
+      /* undo 打过断（撤销计数变了）→ 镜头已撤销回来，放弃本次删除 */
+      if(WB9_DEL_UNDO!==seqUndo) return;
+      wbDeleteShots(box,nos,1);
+    },300);
+    return;
+  }
+  /* 以下为 v8 原删除逻辑，数据部分一字未改 */
   var removed=[];
   pushHistory();
   nos.forEach(function(no){
@@ -2274,17 +2390,31 @@ function wbDeleteShots(box,nos){
     np['s'+nn+'_'+m[2]]=WB_POS[k];
   });
   WB_POS=np;
+  /* v9：AI 分组标签的镜号随重编号迁移，删镜后标签不漂移；
+     坐标布局保留（仍是 AI 布局），故只迁移不清空 */
+  if(state._aiGroups&&state._aiGroups.length){
+    state._aiGroups.forEach(function(g){
+      var nn=[];
+      g.nos.forEach(function(no){ var m=remap['s'+no]; if(m!=null) nn.push(m); });
+      g.nos=nn;
+    });
+    state._aiGroups=state._aiGroups.filter(function(g){ return g.nos.length; });
+  }
   state.trash=state.trash||[];
   removed.forEach(function(r){ state.trash.unshift({shot:r.shot,idx:r.idx}); });
   if(state.trash.length>10) state.trash.length=10;
   renderCanvas(); box._cvBuilt=1;
-  /* 清掉指向已删节点的残留选择 */
-  box._wb._msel=(box._wb._msel||[]).filter(function(k){ return !!box.querySelector('.wb-node[data-k="'+k+'"]'); });
-  if(box._wb._sel!=null&&!box.querySelector('.wb-node[data-i="'+box._wb._sel+'"]')) box._wb._sel=null;
-  wbApplySelClasses(box); wbRefreshFloat(box); wbRefreshTrash(box);
+  /* 清掉指向已删节点的残留选择（删完全部镜头后 renderCanvas 走空态分支、box._wb=null，跳过清理） */
+  if(box._wb){
+    box._wb._msel=(box._wb._msel||[]).filter(function(k){ return !!box.querySelector('.wb-node[data-k="'+k+'"]'); });
+    if(box._wb._sel!=null&&!box.querySelector('.wb-node[data-i="'+box._wb._sel+'"]')) box._wb._sel=null;
+    wbApplySelClasses(box); wbRefreshFloat(box);
+  }
+  wbRefreshTrash(box);
   syncOutputPanel();
   toast('已删除 '+removed.length+' 镜 · Ctrl+Z 撤销 · 回收站可放回');
 }
+/* v9 回收站放回：数据逻辑不变，renderCanvas 后给新插入镜头的 script 节点挂 wb9-dropin 回弹 */
 function wbRestoreShot(box,ti){
   var it=(state.trash||[])[ti]; if(!it) return;
   pushHistory();
@@ -2294,7 +2424,11 @@ function wbRestoreShot(box,ti){
   /* 重编号 + 回默认列布局（恢复操作不猜用户旧布局，简单可靠） */
   state.shots.forEach(function(s,i){ s.no=i+1; });
   WB_POS={};
+  state._aiGroups=null; /* v9：布局已回归默认列，AI 分组标签不再成立 */
   renderCanvas(); box._cvBuilt=1;
+  /* 此时 it.shot.no 已被重编号，按新 no 查节点并挂回弹类 */
+  var el=box.querySelector('.wb-node[data-type="script"][data-i="'+it.shot.no+'"]');
+  if(el) el.classList.add('wb9-dropin');
   wbRefreshTrash(box);
   syncOutputPanel();
   toast('脚本镜头已放回画布（布局已重排）');
@@ -2357,7 +2491,14 @@ function normAiGroups(obj){
   }
   return out.length?out:null;
 }
+/* v9 applyAiLayout：与 v8 的差异只有两处——
+   ① 开头缓存 groups 到 state._aiGroups 供标签渲染读取；
+   ② drawLinks/drawMinimap 从「布局后立即画」移到 700ms 过渡落定后画：
+      left/top 过渡中 offsetLeft 返回中间值（实测 scrub 250ms 已走 87%），
+      t=0 画连线会永久停在旧锚点（v8 遗留问题），必须等过渡结束按最终几何重绘 */
 function applyAiLayout(box,groups){
+  /* 直接引用而非深拷贝：groups 由 AI 返回后即不再被外部改写 */
+  state._aiGroups=groups;
   var world=box.querySelector('[data-wb-world]');
   if(world) world.classList.add('anim');
   var x=80;
@@ -2395,9 +2536,57 @@ function applyAiLayout(box,groups){
     });
     x+=COL_W+COL_GAP;
   });
-  drawLinks(box); drawMinimap(box);
+  /* 布局落定后再渲染标签（坐标读 style 终值，与 0.5s 滑移动画同步飞入） */
+  wb9RenderGroupLabels(box);
   setTimeout(function(){ wbFitView(box); },60);
-  setTimeout(function(){ if(world) world.classList.remove('anim'); },700);
+  /* 过渡落定（.5s）后按最终几何重绘连线/小地图；
+     offsetParent=null（画布被切走）时跳过，切回会触发 renderCanvas 重绘 */
+  setTimeout(function(){
+    if(world) world.classList.remove('anim');
+    if(box.offsetParent){ drawLinks(box); drawMinimap(box); }
+  },700);
+}
+/* v9：渲染 AI 分组列头胶囊标签。
+   幂等：每次先清掉旧标签再重建，可安全重复调用；
+   坐标优先取 style.left/top（AI 排版过渡期间它是终值，offsetLeft 是中间值），
+   取不到再回退 offsetLeft/offsetTop；只读 state._aiGroups 与节点几何，无则静默返回。 */
+function wb9RenderGroupLabels(box){
+  if(!box) return;
+  var world=box.querySelector('[data-wb-world]');
+  if(!world) return;
+  /* 先清旧标签，保证幂等，避免重复调用叠加 */
+  var olds=box.querySelectorAll('.wb9-grouplabel');
+  for(var k=0;k<olds.length;k++){ olds[k].parentNode.removeChild(olds[k]); }
+  var groups=state._aiGroups;
+  if(!groups||!groups.length) return;
+  for(var gi=0;gi<groups.length;gi++){
+    var g=groups[gi];
+    if(!g||!g.nos||!g.nos.length) continue;
+    /* 实算该组脚本节点包围盒：不假设等宽列，逐节点取极值 */
+    var minLeft=Infinity, minTop=Infinity, found=false;
+    for(var ni=0;ni<g.nos.length;ni++){
+      var no=g.nos[ni];
+      var sc=box.querySelector('.wb-node[data-type="script"][data-i="'+no+'"]');
+      if(!sc) continue;
+      found=true;
+      var lx=parseFloat(sc.style.left), ly=parseFloat(sc.style.top);
+      if(isNaN(lx)) lx=sc.offsetLeft;
+      if(isNaN(ly)) ly=sc.offsetTop;
+      if(lx<minLeft) minLeft=lx;
+      if(ly<minTop) minTop=ly;
+    }
+    if(!found) continue;
+    var el=document.createElement('div');
+    el.className='wb9-grouplabel wb9-gl-in';
+    /* label 来自 AI 返回，必须过 esc 再拼 HTML */
+    el.innerHTML=esc(g.label)+' · '+g.nos.length+' 镜';
+    /* 组包围盒顶部上方 30px，左边与组最左节点对齐 */
+    el.style.left=minLeft+'px';
+    el.style.top=(minTop-30)+'px';
+    /* 按组序号错峰飞入：第 N 组（从 1 计）延迟 (N-1)*90ms */
+    el.style.animationDelay=(gi*90)+'ms';
+    world.appendChild(el);
+  }
 }
 function aiLayout(){
   var box=document.getElementById('panelCanvas');
@@ -2628,7 +2817,7 @@ function wbGestureBind(box){
       stage.removeEventListener('pointermove',mv); stage.removeEventListener('pointerup',up); stage.removeEventListener('pointercancel',up);
       mq.classList.remove('on'); mq.hidden=true;
       if(mqc) mqc.classList.remove('on');
-      st._mq=0; st._mqCancel=null;
+      st._mq=0; st._mqCancel=null; st._mqHit=null; /* v9：清空帧间命中记录 */
     }
     /* Esc 取消：还原框选前的选择（finish 已移除指针监听，需自吞尾随 click 防清空） */
     st._mqCancel=function(){
@@ -2671,6 +2860,18 @@ function wbGestureBind(box){
         sel=baseM.filter(function(k){ return hit.indexOf(k)<0; });
         selNo=baseS; /* 减选不改变主镜号归属 */
       }
+      /* v9：新命中节点脉冲反馈（仅相对上一帧的新增项；减选模式不脉冲 */
+      if(mode!=='sub'){
+        var prevHit=st._mqHit||[];
+        var newKeys=[];
+        hit.forEach(function(k){
+          if(prevHit.indexOf(k)>=0) return;
+          if(mode==='add'&&baseM.indexOf(k)>=0) return; /* 加选模式下已选节点不重复脉冲 */
+          newKeys.push(k);
+        });
+        if(newKeys.length&&typeof wb9Pulse==='function') wb9Pulse(box,newKeys);
+      }
+      st._mqHit=hit;
       st._msel=sel; st._sel=selNo;
       badge(x,y,hit.length,sel.length);
       wbApplySelClasses(box); wbRefreshFloat(box);
@@ -2843,6 +3044,7 @@ function bindWorkbench(){
       e.preventDefault();
     });
   })();
+  wb9BindMiniHi(box); /* v9：悬停节点 → 小地图电粉描边联动（box 级 pointerover 委托，值变化才重绘） */
   /* v8：窗口尺寸变化 → 处于「适应」档则重新适应，否则钳制 tx/ty 防内容跑丢 */
   (function(){
     var rzT=null;
@@ -3178,10 +3380,33 @@ function bindOps(){
 }
 
 /* ---------- 复制 / 下载 / Toast ---------- */
-function toast(msg){
-  var t=$('toast'); t.textContent=msg; t.classList.add('show');
+/* v9 toast：新增 type 参数（'ok' / 'err' / 省略）。
+   进入前先清掉旧状态类，避免连续调用时残留上一次的成败色；
+   其余逻辑（show 类、1800ms 定时、liveRegion 播报）保持原样，
+   单参调用行为与升级前完全一致。 */
+function toast(msg, type){
+  var t=$('toast');
+  t.classList.remove('t-ok','t-err');
+  if(type==='ok') t.classList.add('t-ok');
+  else if(type==='err') t.classList.add('t-err');
+  t.textContent=msg;
+  t.classList.add('show');
   var lr=$('liveRegion'); if(lr) lr.textContent=msg; /* 无障碍：屏幕阅读器同步播报 */
   clearTimeout(t._tm); t._tm=setTimeout(function(){t.classList.remove('show');},1800);
+}
+/* v9：命中脉冲——给指定 key 集合对应的节点打一次 wb9-beat 动画。
+   跳过 null（节点可能已被移除）与已带类的节点（防重复叠加）；
+   {once:true} 监听在 animationend 时自动摘除。 */
+function wb9Pulse(box, keys){
+  if(!box||!keys) return;
+  for(var i=0;i<keys.length;i++){
+    var k=keys[i];
+    var el=box.querySelector('.wb-node[data-k="'+k+'"]');
+    if(!el) continue;
+    if(el.classList.contains('wb9-beat')) continue;
+    el.classList.add('wb9-beat');
+    el.addEventListener('animationend',function(){ this.classList.remove('wb9-beat'); },{once:true});
+  }
 }
 function copyText(txt, ok){
   function fallback(){
@@ -3750,6 +3975,7 @@ function undo(){
     var obj=JSON.parse(prev);
     if(obj&&obj.shots){ state.shots=obj.shots; state.trash=obj.trash||[]; }
     else state.shots=obj; /* 兼容旧格式（纯 shots 数组快照） */
+    WB9_DEL_UNDO++; /* v9：打断可能正在播放的删除消散动画，防止 300ms 后误删刚撤销的镜头 */
     renderAll();
     toast('已撤销上一步');
   }catch(_){}
