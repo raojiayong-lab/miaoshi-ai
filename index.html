@@ -726,6 +726,38 @@
   .toast.t-ok::before{content:"✓ ";color:var(--teal);font-weight:800}
   .toast.t-err::before{content:"! ";color:var(--err);font-weight:800}
 
+  /* ===== v11：左侧栏 AI 直聊（DeepSeek）——聊完一键整理成剧情去制作 ===== */
+  .chat-card{background:var(--card);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;overflow:hidden;flex:none}
+  .chat-head{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--line)}
+  .chat-title{font-size:13px;font-weight:800;color:var(--ink);display:flex;align-items:center;gap:6px}
+  .chat-title .dot{width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 8px var(--teal)}
+  .chat-sub{font-size:10px;font-weight:600;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 7px;letter-spacing:.03em}
+  .chat-clear{background:none;border:0;color:var(--muted);font-size:11px;cursor:pointer;padding:4px 6px;border-radius:6px}
+  .chat-clear:hover{color:var(--err);background:rgba(255,77,109,.08)}
+  .chat-msgs{max-height:220px;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+  .chat-msg{max-width:88%;font-size:12.5px;line-height:1.55;padding:7px 10px;border-radius:10px;white-space:pre-wrap;word-break:break-word}
+  .chat-msg.me{align-self:flex-end;background:var(--accent-soft);border:1px solid rgba(255,77,109,.28);color:var(--ink);border-bottom-right-radius:3px}
+  .chat-msg.ai{align-self:flex-start;background:rgba(123,211,192,.08);border:1px solid rgba(123,211,192,.22);color:var(--body);border-bottom-left-radius:3px}
+  .chat-empty{align-self:center;color:var(--muted);font-size:11.5px;text-align:center;line-height:1.7;padding:10px 4px}
+  .chat-typing{display:none;padding:0 12px 8px;gap:4px}
+  .chat-typing.on{display:flex}
+  .chat-typing span{width:5px;height:5px;border-radius:50%;background:var(--teal);animation:chatBlink 1.2s infinite}
+  .chat-typing span:nth-child(2){animation-delay:.2s}
+  .chat-typing span:nth-child(3){animation-delay:.4s}
+  @keyframes chatBlink{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-2px)}}
+  .chat-inputrow{display:flex;gap:6px;padding:8px 10px;border-top:1px solid var(--line);align-items:flex-end}
+  .wb-side .chat-inputrow textarea{flex:1;min-height:38px;max-height:96px;resize:none;font-size:12.5px;line-height:1.5;padding:8px 10px}
+  .chat-send{flex:none;background:var(--accent);color:#fff;border:0;border-radius:8px;padding:0 14px;height:38px;font-size:12.5px;font-weight:700;cursor:pointer}
+  .chat-send:disabled{opacity:.5;cursor:not-allowed}
+  .chat-actions{padding:0 10px 10px}
+  .chat-tostory{width:100%;background:rgba(123,211,192,.10);border:1px solid rgba(123,211,192,.35);color:var(--teal);border-radius:8px;padding:8px;font-size:12.5px;font-weight:700;cursor:pointer}
+  .chat-tostory:hover{background:rgba(123,211,192,.18)}
+  .chat-tostory:disabled{opacity:.5;cursor:not-allowed}
+  /* v11：AI 分组列衬底（世界最底层 z0，节点 auto 在其上，标签 z2 顶层） */
+  .wb10-colbg{position:absolute;z-index:0;pointer-events:none;border:1px solid rgba(123,211,192,.16);border-radius:14px;background:rgba(123,211,192,.045)}
+  .wb10-colbg.wb10-cb-in{animation:wb10ColIn .38s var(--ease-out) both}
+  @keyframes wb10ColIn{from{opacity:0;transform:scale(.985) translateY(4px)}to{opacity:1;transform:none}}
+
   @media (prefers-reduced-motion: reduce){
     *{transition:none!important;animation:none!important}
     html{scroll-behavior:auto}
@@ -793,6 +825,22 @@
   </div>
   <aside class="wb-side">
     <div class="panel">
+      <!-- v11：AI 直聊（DeepSeek）——聊完整理成剧情，一键去制作 -->
+      <div class="chat-card" id="chatCard">
+        <div class="chat-head">
+          <div class="chat-title"><span class="dot"></span>AI 创作助手<span class="chat-sub">DeepSeek</span></div>
+          <button type="button" class="chat-clear" id="chatClear" title="清空全部对话">清空</button>
+        </div>
+        <div class="chat-msgs" id="chatMsgs"></div>
+        <div class="chat-typing" id="chatTyping" aria-live="polite"><span></span><span></span><span></span></div>
+        <div class="chat-inputrow">
+          <textarea id="chatInput" rows="1" placeholder="聊聊故事灵感… Enter 发送，Shift+Enter 换行"></textarea>
+          <button type="button" class="chat-send" id="chatSend">发送</button>
+        </div>
+        <div class="chat-actions">
+          <button type="button" class="chat-tostory" id="chatToStory">整理成剧情 → 去制作</button>
+        </div>
+      </div>
       <div class="label">你的小说 / 文案 / 剧情<label class="count" id="charCount">0 字</label></div>
       <textarea id="story" placeholder="在这里粘贴小说片段或一段剧情文案，比如：&#10;&#10;深夜，老旧公寓的楼道灯忽明忽灭。她听到身后传来脚步声……"></textarea>
       <div class="examples" id="examples"></div>
@@ -2506,6 +2554,85 @@ function wbClampView(box){
   applyWbTransform(box); drawMinimap(box);
 }
 /* —— v8：DeepSeek AI 自动排版（AI 管叙事分组，几何由本地实算，稳） —— */
+/* v11：分组均衡后处理——AI 偶尔甩出 5+ 镜大组或一串单镜组，画布列就会稀疏不齐。
+   在「不重不漏 + 保持叙事先后序」前提下整理：大组拆到 ≤4 镜、单镜并入相邻组、
+   总组数收敛到 2-4（镜头数 <4 时放宽）、只剩一组且 n≥4 时对半拆。
+   返回新数组（含拷贝），不改入参数。 */
+function balanceAiGroups(groups){
+  var n=0,i;
+  for(i=0;i<groups.length;i++) n+=groups[i].nos.length;
+  if(n<2) return groups;
+  var gs=groups.map(function(g){ return {label:g.label,nos:g.nos.slice(0)}; });
+  function splitBig(list){
+    var out=[];
+    for(var i=0;i<list.length;i++){
+      var nos=list[i].nos.slice(0);
+      while(nos.length>4){
+        var take=nos.length>5?3:2; /* 5→2+3；6→3+3；≥7 先切 3 */
+        out.push({label:list[i].label,nos:nos.splice(0,take)});
+      }
+      if(nos.length) out.push({label:list[i].label,nos:nos});
+    }
+    return out;
+  }
+  function mergeSingles(list){
+    var out=[];
+    for(var i=0;i<list.length;i++){
+      var c=list[i];
+      if(c.nos.length===1){
+        if(out.length&&out[out.length-1].nos.length<4){
+          out[out.length-1].nos=out[out.length-1].nos.concat(c.nos); continue;
+        }
+        if(i+1<list.length&&list[i+1].nos.length<4){
+          list[i+1].nos=c.nos.concat(list[i+1].nos); continue;
+        }
+        /* 两侧都不够位：并入镜头更少的相邻组（允许临时 >4，下一轮 splitBig 重切） */
+        if(out.length&&(!(i+1<list.length)||out[out.length-1].nos.length<=list[i+1].nos.length)){
+          out[out.length-1].nos=out[out.length-1].nos.concat(c.nos); continue;
+        }
+        if(i+1<list.length){ list[i+1].nos=c.nos.concat(list[i+1].nos); continue; }
+      }
+      out.push(c);
+    }
+    return out;
+  }
+  function capGroups(list){
+    while(list.length>4){
+      var bi=-1,bs=Infinity;
+      for(var i=0;i<list.length-1;i++){
+        var s=list[i].nos.length+list[i+1].nos.length;
+        if(s<=4&&s<bs){ bs=s; bi=i; }
+      }
+      if(bi<0){
+        for(var j=0;j<list.length-1;j++){
+          var s2=list[j].nos.length+list[j+1].nos.length;
+          if(s2<bs){ bs=s2; bi=j; }
+        }
+      }
+      var a=list[bi],b=list[bi+1];
+      list.splice(bi,2,{label:(a.nos.length>=b.nos.length?a.label:b.label),nos:a.nos.concat(b.nos)});
+    }
+    return list;
+  }
+  function splitLargest(list){
+    var bi=0;
+    for(var i=1;i<list.length;i++){ if(list[i].nos.length>list[bi].nos.length) bi=i; }
+    var g=list[bi],half=Math.floor(g.nos.length/2);
+    if(half<1) return list;
+    list.splice(bi,1,{label:g.label,nos:g.nos.slice(0,half)},{label:g.label,nos:g.nos.slice(half)});
+    return list;
+  }
+  var guard=0;
+  while(guard++<6){
+    var before=JSON.stringify(gs);
+    gs=splitBig(gs);
+    gs=mergeSingles(gs);
+    if(gs.length>4) gs=capGroups(gs);
+    if(gs.length<2&&n>=4) gs=splitLargest(gs);
+    if(JSON.stringify(gs)===before) break;
+  }
+  return gs;
+}
 function normAiGroups(obj){
   if(!obj) return null;
   var gs=obj.groups||obj.排版||obj.layout||obj.cols;
@@ -2529,6 +2656,8 @@ function normAiGroups(obj){
       out[out.length-1].nos.push(k);
     }
   }
+  /* v11：均衡后处理（拆大组/并单镜/组数 2-4），排版不乱的最后一道闸 */
+  if(out.length) out=balanceAiGroups(out);
   return out.length?out:null;
 }
 /* v9 applyAiLayout：与 v8 的差异只有两处——
@@ -2586,24 +2715,30 @@ function applyAiLayout(box,groups){
     if(box.offsetParent){ drawLinks(box); drawMinimap(box); }
   },700);
 }
-/* v9：渲染 AI 分组列头胶囊标签。
-   幂等：每次先清掉旧标签再重建，可安全重复调用；
+/* v9：渲染 AI 分组列头胶囊标签；v11：同帧渲染分组列衬底 .wb10-colbg。
+   幂等：每次先清掉旧标签/衬底再重建，可安全重复调用；
    坐标优先取 style.left/top（AI 排版过渡期间它是终值，offsetLeft 是中间值），
-   取不到再回退 offsetLeft/offsetTop；只读 state._aiGroups 与节点几何，无则静默返回。 */
+   取不到再回退 offsetLeft/offsetTop；只读 state._aiGroups 与节点几何，无则静默返回。
+   衬底插入世界首子元素之前（z-index:0 + DOM 最前 → 压在节点与连线之下、标签之上不了），
+   标签 z-index:2 保持顶层；两者共用 gi*90ms 错峰，视觉上是一个整体飞入。 */
 function wb9RenderGroupLabels(box){
   if(!box) return;
   var world=box.querySelector('[data-wb-world]');
   if(!world) return;
-  /* 先清旧标签，保证幂等，避免重复调用叠加 */
+  /* 先清旧标签与旧衬底，保证幂等，避免重复调用叠加 */
   var olds=box.querySelectorAll('.wb9-grouplabel');
   for(var k=0;k<olds.length;k++){ olds[k].parentNode.removeChild(olds[k]); }
+  var oldb=box.querySelectorAll('.wb10-colbg');
+  for(var kb=0;kb<oldb.length;kb++){ oldb[kb].parentNode.removeChild(oldb[kb]); }
   var groups=state._aiGroups;
   if(!groups||!groups.length) return;
+  /* 衬底统一走 DocumentFragment 一次性插到世界最前：逐组 insertBefore(firstChild) 会逆序 */
+  var frag=document.createDocumentFragment();
   for(var gi=0;gi<groups.length;gi++){
     var g=groups[gi];
     if(!g||!g.nos||!g.nos.length) continue;
-    /* 实算该组脚本节点包围盒：不假设等宽列，逐节点取极值 */
-    var minLeft=Infinity, minTop=Infinity, found=false;
+    /* 实算该组节点包围盒：不假设等宽列，逐节点取极值（含 img/video 链，衬底要包住整列） */
+    var minLeft=Infinity, minTop=Infinity, maxRight=-Infinity, maxBottom=-Infinity, found=false;
     for(var ni=0;ni<g.nos.length;ni++){
       var no=g.nos[ni];
       var sc=box.querySelector('.wb-node[data-type="script"][data-i="'+no+'"]');
@@ -2614,8 +2749,25 @@ function wb9RenderGroupLabels(box){
       if(isNaN(ly)) ly=sc.offsetTop;
       if(lx<minLeft) minLeft=lx;
       if(ly<minTop) minTop=ly;
+      var rx=lx+sc.offsetWidth, by=ly+sc.offsetHeight;
+      if(rx>maxRight) maxRight=rx;
+      if(by>maxBottom) maxBottom=by;
+      /* 同镜的 img/video 链：取底部极值（衬底纵向包住），左侧与脚本列对齐 */
+      var im=box.querySelector('.wb-node[data-type="image"][data-i="'+no+'"]');
+      if(im){ var iy=parseFloat(im.style.top); if(!isNaN(iy)&&iy+im.offsetHeight>maxBottom) maxBottom=iy+im.offsetHeight; }
+      var vd=box.querySelector('.wb-node[data-type="video"][data-i="'+no+'"]');
+      if(vd){ var vy=parseFloat(vd.style.top); if(!isNaN(vy)&&vy+vd.offsetHeight>maxBottom) maxBottom=vy+vd.offsetHeight; }
     }
     if(!found) continue;
+    /* v11：分组列衬底（含上方标签带头部空间 42px；左右各 16px；底部 16px） */
+    var bg=document.createElement('div');
+    bg.className='wb10-colbg wb10-cb-in';
+    bg.style.left=(minLeft-16)+'px';
+    bg.style.top=(minTop-42)+'px';
+    bg.style.width=(maxRight-minLeft+32)+'px';
+    bg.style.height=(maxBottom-minTop+58)+'px';
+    bg.style.animationDelay=(gi*90)+'ms';
+    frag.appendChild(bg);
     var el=document.createElement('div');
     el.className='wb9-grouplabel wb9-gl-in';
     /* label 来自 AI 返回，必须过 esc 再拼 HTML */
@@ -2627,6 +2779,8 @@ function wb9RenderGroupLabels(box){
     el.style.animationDelay=(gi*90)+'ms';
     world.appendChild(el);
   }
+  /* 衬底整体插到 SVG 与节点之前（z-index:0 + DOM 最前 → 世界最底层） */
+  world.insertBefore(frag,world.firstChild);
 }
 function aiLayout(){
   var box=document.getElementById('panelCanvas');
@@ -2643,9 +2797,10 @@ function aiLayout(){
     return s.no+'|'+(s.beat||'情节')+'|'+(s.cam||'').split('·')[0].trim()+'|'+s.dur+'|'+String(s.line||s.summary||'').replace(/\s+/g,' ').slice(0,16);
   }).join('\n');
   var sys='你是漫剧分镜画布的排版引擎。任务：把镜头按叙事节奏分组，供无限画布自动排版。'
-    +'只输出 JSON，禁止任何解释文字。格式：{"groups":[{"label":"分组名","nos":[镜号,镜号]}]}。'
-    +'规则：① 全部镜号必须恰好出现一次，不重不漏；② 每组 1-4 镜，同组镜头叙事上紧相关；'
-    +'③ 组与组内都按叙事先后排序；④ label 用 2-4 个汉字概括该组节奏；⑤ 镜号用输入里的数字。';
+    +'只输出 JSON，禁止任何解释文字、注释或 markdown 代码块。格式：{"groups":[{"label":"分组名","nos":[镜号,镜号]}]}。'
+    +'规则：① 全部镜号必须恰好出现一次，不重不漏；② 总共分 2-4 组（镜头总数不足 4 时除外），每组 2-4 镜，同组镜头叙事上紧相关；'
+    +'③ 组与组内都严格按叙事先后排序，不允许跳镜乱序；④ label 用 2-4 个汉字概括该组节奏；⑤ 镜号用输入里的数字；'
+    +'⑥ 认真分组：先通读全部镜头找节奏转折点（开场/推进/高潮/收束），再切组，不要平均切段。';
   fetch(url,{
     method:'POST',
     headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
@@ -2665,6 +2820,139 @@ function aiLayout(){
     if(btn){ btn.disabled=false; btn.textContent='✦ AI 排版'; }
   });
 }
+/* ===== v11：左侧栏 AI 直聊（DeepSeek）——聊完一键「整理成剧情 → 去制作」 ===== */
+var CHAT_LS='miaoshi_chat_v1', CHAT_KEEP=12, CHAT_BUSY=false;
+function chatMsgs(){
+  try{ var raw=localStorage.getItem(CHAT_LS); var a=raw?JSON.parse(raw):[]; return Array.isArray(a)?a:[]; }catch(e){ return []; }
+}
+function chatSave(ms){
+  try{ localStorage.setItem(CHAT_LS, JSON.stringify(ms.slice(-60))); }catch(e){}
+}
+function chatRender(){
+  var wrap=$('chatMsgs'); if(!wrap) return;
+  var ms=chatMsgs();
+  if(!ms.length){
+    wrap.innerHTML='<div class="chat-empty">聊聊你的故事灵感、题材或想翻拍的片段<br>聊完点下方「整理成剧情 → 去制作」</div>';
+  }else{
+    var h='';
+    for(var i=0;i<ms.length;i++){
+      h+='<div class="chat-msg '+(ms[i].role==='user'?'me':'ai')+'">'+esc(ms[i].content)+'</div>';
+    }
+    wrap.innerHTML=h;
+  }
+  wrap.scrollTop=wrap.scrollHeight;
+}
+function chatTyping(on){
+  var t=$('chatTyping'); if(!t) return;
+  if(on) t.classList.add('on'); else t.classList.remove('on');
+}
+function chatBusy(on){
+  CHAT_BUSY=!!on;
+  var b=$('chatSend'); if(b){ b.disabled=on; b.textContent=on?'…':'发送'; }
+  var t2=$('chatToStory'); if(t2) t2.disabled=on;
+}
+function chatSend(){
+  if(CHAT_BUSY) return;
+  var input=$('chatInput'); if(!input) return;
+  var text=(input.value||'').trim();
+  if(!text){ toast('先打几个字再发送'); input.focus(); return; }
+  var key=($('apiKey').value||'').trim();
+  if(!key){ toast('聊天需要 API Key：点右上角「API 设置」填入 DeepSeek Token','err'); return; }
+  var url=($('apiUrl').value||'').trim()||'https://api.deepseek.com/chat/completions';
+  var model=($('apiModel').value||'').trim()||'deepseek-chat';
+  var ms=chatMsgs();
+  ms.push({role:'user',content:text});
+  chatSave(ms); chatRender();
+  input.value=''; input.style.height='auto';
+  chatBusy(true); chatTyping(true);
+  var sys='你是「秒视 AI」的漫剧创作助手，帮用户打磨短视频/漫剧剧情。要求：简体中文，口语化、干脆有梗；'
+    +'回复控制在 120 字以内；多给可执行建议（题材方向、开头钩子、反转设计、分镜思路），不写大段说明文。';
+  fetch(url,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+    body:JSON.stringify({model:model,messages:[{role:'system',content:sys}].concat(ms.slice(-CHAT_KEEP)),temperature:0.7,max_tokens:512})
+  }).then(function(res){
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    return res.json();
+  }).then(function(data){
+    var ch=data&&data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content;
+    if(!ch) throw new Error('AI 没回内容');
+    ms.push({role:'assistant',content:String(ch).trim()});
+    chatSave(ms); chatRender();
+  }).catch(function(err){
+    /* 失败不落库：撤掉刚发的用户消息，还原输入框，用户可原样重发 */
+    ms.pop(); chatSave(ms); chatRender();
+    input.value=text; input.focus();
+    toast('聊天失败（'+err.message+'）· 检查 Key 或网络','err');
+  }).then(function(){
+    chatBusy(false); chatTyping(false);
+  });
+}
+function chatToStory(){
+  if(CHAT_BUSY){ toast('AI 正在忙，稍等一下'); return; }
+  var ms=chatMsgs();
+  var talk=ms.filter(function(m){ return m.content; }).map(function(m){ return (m.role==='user'?'我':'AI')+'：'+m.content; }).join('\n');
+  if(!talk){ toast('先聊几句灵感，再整理成剧情'); var ip0=$('chatInput'); if(ip0) ip0.focus(); return; }
+  chatBusy(true);
+  var btn=$('chatToStory'); if(btn) btn.textContent='整理中…';
+  function fill(story){
+    $('story').value=story;
+    $('charCount').textContent=story.length+' 字';
+    state._chatAutoLayout=1; /* v11：接下来点「生成分镜」→ 出镜后自动接 AI 排版 */
+    showView('workbench');
+    toast('剧情已就绪 · 点「生成分镜提示词」开始制作','ok');
+    try{ $('story').focus(); }catch(e){}
+  }
+  function done(){ chatBusy(false); var b=$('chatToStory'); if(b) b.textContent='整理成剧情 → 去制作'; }
+  var key=($('apiKey').value||'').trim();
+  if(!key){
+    /* 无 Key 降级：对话原文直接进剧情框（本地解析不依赖 Key） */
+    fill(talk.slice(0,2000));
+    done();
+    toast('未填 API Key · 已把对话原文填入剧情框，可手动删改','err');
+    return;
+  }
+  var url=($('apiUrl').value||'').trim()||'https://api.deepseek.com/chat/completions';
+  var model=($('apiModel').value||'').trim()||'deepseek-chat';
+  var sys='你是漫剧编剧。把用户与 AI 助手的对话整理成一段可直接用于分镜解析的剧情文案。'
+    +'要求：只输出剧情正文（150-300 字），保留对话里已确定的人物、场景、冲突与反转；'
+    +'用第三人称叙述，去掉问答口癖与建议痕迹；不要标题、不要任何解释。';
+  fetch(url,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+    body:JSON.stringify({model:model,messages:[{role:'system',content:sys},{role:'user',content:talk}],temperature:0.5,max_tokens:800})
+  }).then(function(res){
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    return res.json();
+  }).then(function(data){
+    var ch=data&&data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content;
+    if(!ch) throw new Error('AI 没回内容');
+    fill(String(ch).trim().slice(0,2000));
+  }).catch(function(err){
+    /* 整理失败也降级填原文，管线不断 */
+    fill(talk.slice(0,2000));
+    toast('AI 整理失败（'+err.message+'）· 已先填对话原文，可手动改','err');
+  }).then(done);
+}
+(function initChat(){
+  chatRender();
+  var ip=$('chatInput');
+  if(ip){
+    ip.addEventListener('keydown',function(e){
+      if(e.key==='Enter'&&!e.shiftKey&&!e.ctrlKey&&!e.metaKey){ e.preventDefault(); chatSend(); }
+    });
+    ip.addEventListener('input',function(){
+      this.style.height='auto';
+      this.style.height=Math.min(96,this.scrollHeight)+'px';
+    });
+  }
+  var sd=$('chatSend'); if(sd) sd.onclick=chatSend;
+  var ts=$('chatToStory'); if(ts) ts.onclick=chatToStory;
+  var cl=$('chatClear'); if(cl) cl.onclick=function(){
+    if(!chatMsgs().length){ toast('对话本来就是空的'); return; }
+    chatSave([]); chatRender(); toast('对话已清空');
+  };
+})();
 /* —— 浮条：单选 = 镜头操作；多选 = 批量操作 + 对齐工具 —— */
 function wbRefreshFloat(box){
   var fl=box.querySelector('[data-wb-float]'); if(!fl) return;
@@ -3481,6 +3769,14 @@ function generate(){
       $('output').classList.add('show');
       savePrefs(story,style,count,ratio,dur);
       toast('已生成 '+state.shots.length+' 镜分镜 · 提炼 '+state.highlights.length+' 个看点'+(state.waterRemoved?' · 剔水 '+state.waterRemoved:''));
+      /* v11 聊天管线：由「整理成剧情 → 去制作」置位——生成后自动接上 AI 排版，无 Key 则引导手动点 */
+      if(state._chatAutoLayout){
+        state._chatAutoLayout=0;
+        setTimeout(function(){
+          if(($('apiKey').value||'').trim()){ toast('分镜已就绪 · 正在 AI 排版…'); aiLayout(); }
+          else { toast('分镜已就绪 · 画布上点「✦ AI 排版」可 AI 分组排版'); }
+        },900);
+      }
     }catch(err){
       console.error(err);
       toast('生成失败：'+((err&&err.message)||'未知错误')+'。可换个片段再试');
