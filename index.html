@@ -211,9 +211,10 @@
     background:var(--card);border:1px dashed var(--line);border-radius:14px}
   /* ===== 画布工作区（TapNow Tapflow 风格 · 蓝黑轴） ===== */
   .wb{position:relative;height:74vh;min-height:440px;background:var(--wb-bg);border:1px solid var(--wb-border);border-radius:14px;overflow:hidden;touch-action:pan-x pan-y}
-  .wb-stage{position:absolute;inset:0;cursor:grab;
+  .wb-stage{position:absolute;inset:0;cursor:default;
     background-image:radial-gradient(circle,#1a1f2e 1px,transparent 1.2px);background-size:26px 26px}
-  .wb-stage:active{cursor:grabbing}
+  .wb-stage.spacepan{cursor:grab}
+  .wb-stage.spacepan:active,.wb-stage.panning{cursor:grabbing}
   .wb-world{position:absolute;top:0;left:0;transform-origin:0 0}
   .wb-links{position:absolute;top:0;left:0;overflow:visible;pointer-events:none}
   /* 三种节点类型（纯文本提示词卡片，无媒体占位） */
@@ -298,6 +299,29 @@
     background:var(--wb-bg);border:1px solid var(--wb-border);border-radius:999px;padding:4px 8px}
   .wb-zbtn{min-width:44px;min-height:44px;background:none;border:0;color:var(--body);font-size:18px;cursor:pointer;border-radius:10px}
   .wb-zbtn:hover{background:rgba(123,211,192,.12);color:var(--teal)}
+  /* ===== 画布交互 2.0（框选 / 多选拖动 / 吸附 / 空格平移 · 复刻即梦·Figma） ===== */
+  .wb-node{cursor:grab;touch-action:none} /* 触屏拖节点不劫持页面滚动 */
+  .wb-node [data-edit="line"]{user-select:text;-webkit-user-select:text;cursor:text}
+  .wb-node.dragging{cursor:grabbing}
+  .wb-port{pointer-events:none} /* 装饰性端口，不挡拖拽 */
+  /* 框选遮罩（舞台屏幕空间） */
+  .wb-marquee{position:absolute;z-index:28;border:1px solid var(--accent);background:rgba(255,77,109,.10);
+    border-radius:2px;pointer-events:none;display:none}
+  .wb-marquee.on{display:block}
+  /* 吸附参考线 */
+  .wb-guides{position:absolute;inset:0;z-index:27;pointer-events:none;display:none}
+  .wb-guides.on{display:block}
+  .wb-guides i{position:absolute;background:var(--accent)}
+  .wb-guides i.wg-v{width:1px;top:0;bottom:0}
+  .wb-guides i.wg-h{height:1px;left:0;right:0}
+  /* 多选浮条：计数 + 分隔 + 对齐工具 */
+  .wb-float .fb-count{font-size:12px;color:var(--muted);padding:0 8px;white-space:nowrap;align-self:center;font-weight:700}
+  .wb-float .fb-sep{width:1px;align-self:stretch;background:var(--wb-border);margin:4px 2px}
+  .wb-float button[data-fbal]{color:var(--teal)}
+  @media(max-width:767px){.wb-float{max-width:calc(100% - 20px);flex-wrap:wrap;justify-content:center}}
+  /* 图例操作提示 */
+  .wb-legend .lg-op{display:inline-flex;align-items:center;gap:4px;color:var(--muted)}
+  .wb-legend .lg-op::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--accent)}
   /* 素材库 */
   .wb-assets{position:absolute;top:56px;left:10px;bottom:10px;width:290px;z-index:11;background:var(--wb-assets);border:1px solid var(--wb-border);border-radius:12px;padding:12px;overflow-y:auto;transition:transform .25s ease}
   .wb-assets[hidden]{display:none}
@@ -1496,9 +1520,9 @@ function renderAll(){
   $('outMeta').textContent=state.scene+' · 约'+totalDur(ss)+'秒 · '+state.ratioText+' · 单镜'+state.dur+'s'+(state.waterRemoved?' · 已剔水 '+state.waterRemoved+' 句':'');
   renderSummary(); renderAnalysis(); renderPrompt(); renderLine(); renderAdvice();
   bindOps();
-  /* R4: 画布始终在工作台主区，renderAll 后直接重绘节点 */
+  /* R4: 画布始终在工作台主区，renderAll 后直接重绘节点（reset=清空选择并适应视图） */
   if(typeof renderCanvas==='function' && document.body.classList.contains('inside')){
-    renderCanvas();
+    renderCanvas(true);
   }
 }
 function esc(t){
@@ -1811,28 +1835,33 @@ function videoNodeHtml(s){
 /* 按列动态布局：脚本→静帧→视频 自上而下，按真实高度堆叠 */
 function layoutColumns(box){
   var list=state.shots||[];
+  /* 位置落地：WB_POS 有持久化坐标（用户拖过 / 上一轮布局）则复用，否则按默认列位计算并存储。
+     注意：renderCanvas 会整块替换 innerHTML，节点元素全是新的——必须每次都写 style.left/top，
+     否则重绘（换运镜/加变体/行折叠）后所有节点会丢失定位堆在世界原点 */
+  function place(nd,key,defX,defY){
+    if(!nd) return defY;
+    var p=WB_POS[key];
+    if(!p){ p={x:defX,y:defY}; WB_POS[key]=p; }
+    nd.style.left=p.x+'px'; nd.style.top=p.y+'px';
+    return p.y+nd.offsetHeight+26;
+  }
   list.forEach(function(s,i){
     var colX=80+i*(COL_W+COL_GAP);
     var script=box.querySelector('.wb-node[data-type="script"][data-i="'+s.no+'"]');
     var image=box.querySelector('.wb-node[data-type="image"][data-i="'+s.no+'"]');
     var video=box.querySelector('.wb-node[data-type="video"][data-i="'+s.no+'"]');
-    var y=WORLD_TOP;
-    if(script){
-      if(!WB_POS['s'+s.no+'_script']){ script.style.left=colX+'px'; script.style.top=y+'px'; }
-      y=parseFloat(script.style.top)+script.offsetHeight+26;
-    }
-    if(image){
-      if(!WB_POS['s'+s.no+'_img']){ image.style.left=colX+'px'; image.style.top=y+'px'; }
-      y=parseFloat(image.style.top)+image.offsetHeight+26;
-    }
-    if(video){
-      if(!WB_POS['s'+s.no+'_vid']){ video.style.left=colX+'px'; video.style.top=y+'px'; }
-    }
+    var y=place(script,'s'+s.no+'_script',colX,WORLD_TOP);
+    y=place(image,'s'+s.no+'_img',colX,y);
+    place(video,'s'+s.no+'_vid',colX,y);
     /* 备选变体挂在脚本节点右侧 */
     if(s.alts&&s.alts.length){
       s.alts.forEach(function(alt,ai){
         var an=box.querySelector('.wb-node.alt[data-i="'+s.no+'"][data-alt="'+ai+'"]');
-        if(an && !WB_POS['s'+s.no+'_alt'+ai]){ an.style.left=(colX+COL_W+24+ai*190)+'px'; if(script) an.style.top=script.style.top; }
+        if(an){
+          var k2='s'+s.no+'_alt'+ai, p2=WB_POS[k2];
+          if(!p2){ p2={x:colX+COL_W+24+ai*190, y:script?parseFloat(script.style.top):WORLD_TOP}; WB_POS[k2]=p2; }
+          an.style.left=p2.x+'px'; an.style.top=p2.y+'px';
+        }
       });
     }
   });
@@ -1961,16 +1990,26 @@ function altNodeHtml(s, altIdx, colX, collapsed){
   return '<div class="wb-node alt'+(collapsed?' collapsed':'')+'" data-type="alt" data-i="'+s.no+'" data-alt="'+altIdx+'" data-k="s'+s.no+'_alt'+altIdx+'" data-st="done" style="width:'+(collapsed?70:220)+'px">'
     +inner+'</div>';
 }
-function renderCanvas(){
+function renderCanvas(reset){
   var box=document.getElementById('panelCanvas'); if(!box) return;
   var list=state.shots||[];
   if(!list.length){
+    box._wb=null;
     box.innerHTML='<p class="cv-empty">画布是空的。在右侧贴一段小说 → 点「生成分镜提示词」，这里会出现 脚本 → 出图提示词 → 视频提示词 的文本管道，每段提示词都能一键复制去即梦 / 可灵。</p>';
     return;
   }
   var mob=isMobile();
   var prev=box._wb||{};
-  box._wb={tx:0,ty:30,scale:mob?1:0.7, _rows:prev._rows||(mob?'script':'script+image'), _sel:prev._sel||null, _compare:prev._compare||null};
+  if(reset) WB_POS={}; /* 全新生成 → 清空旧布局，回归默认列位 */
+  /* 视图状态跨重绘保留（行折叠/换运镜/加变体不再跳视图）；reset=true 仅用于全新生成 */
+  var keep=prev.tx!=null&&!reset;
+  box._wb={
+    tx:keep?prev.tx:0, ty:keep?prev.ty:30, scale:keep?prev.scale:(mob?1:0.7),
+    _rows:prev._rows||(mob?'script':'script+image'),
+    _sel:prev._sel||null,
+    _msel:reset?[]:(prev._msel||[]),
+    _compare:prev._compare||null
+  };
   /* 世界范围：内容 + 大片留白，支持无限平移 */
   var worldW=80;
   list.forEach(function(s,i){
@@ -1989,6 +2028,7 @@ function renderCanvas(){
       +'<button type="button" data-row="img" class="'+(box._wb._rows==='script+image'?'on':'')+'">脚本+出图提示词</button>'
       +'<button type="button" data-row="all" class="'+(box._wb._rows==='all'?'on':'')+'">全展开</button>'
       +'</div>'
+      +'<button type="button" class="wb-btn" data-wb-tidy title="恢复默认列布局">重排</button>'
       +'<button type="button" class="wb-btn primary" data-wb-export><span class="vf vf1"></span><span class="vf vf2"></span><span class="vf vf3"></span><span class="vf vf4"></span>复制全片提示词</button>'
       +'<span class="wb-tip">脚本 → 出图提示词 → 视频提示词，逐镜复制去即梦/可灵</span>'
     +'</div>'
@@ -2006,12 +2046,16 @@ function renderCanvas(){
           return h;
         }).join('')
       +'</div>'
+      /* 框选遮罩与吸附参考线：舞台屏幕空间，不随世界变换缩放 */
+      +'<div class="wb-marquee" data-wb-marquee hidden></div>'
+      +'<div class="wb-guides" data-wb-guides></div>'
     +'</div>'
     +'<div class="wb-float" data-wb-float style="display:none"></div>'
     +'<div class="wb-mini" data-wb-mini><canvas width="160" height="90"></canvas></div>'
     +'<div class="wb-legend" role="note">'
       +'<b>节点</b><span class="lg-node lg-script"><i></i>脚本</span><span class="lg-node lg-image"><i></i>出图提示词</span><span class="lg-node lg-video"><i></i>视频提示词</span>'
       +'<b>连线</b><span class="lg-line lg-flow"><i></i>镜次推进</span><span class="lg-line lg-pipe"><i></i>先图后动</span><span class="lg-line lg-alt"><i></i>备选运镜</span>'
+      +'<b>操作</b><span class="lg-op">空白拖拽=框选</span><span class="lg-op">空格=平移</span><span class="lg-op">方向键=微调</span>'
     +'</div>'
     +'<div class="wb-zoombar"><button type="button" class="wb-zbtn" data-wb-z="-" aria-label="缩小">−</button>'
       +'<span class="wb-zoom" data-wb-zoom>70%</span>'
@@ -2025,6 +2069,10 @@ function renderCanvas(){
   applyWbTransform(box);
   drawLinks(box);
   drawMinimap(box);
+  /* 恢复多选样式与浮条（跨重绘保持选择） */
+  if(box._wb._msel.length){ wbApplySelClasses(box); wbRefreshFloat(box); }
+  /* 全新生成 → 适应视图；移动端默认铺满 */
+  if(reset||mob) wbFitView(box);
   box._cvBuilt=1;
 }
 function buildExportText(){
@@ -2067,54 +2115,376 @@ function buildExportText(){
   L.push('5. 导出 9:16、1080p。');
   return L.join('\n');
 }
+/* ===== 画布交互 2.0（复刻即梦无限画布 / Figma 主流范式） =====
+ * ① 空白处拖拽 = 框选，触碰到即入选；Shift+点选 = 追加 / 取消
+ * ② 节点任意位置（按钮/可编辑台词除外）可拖；已多选时拖动其一 = 整组移动
+ * ③ 拖动吸附：主节点边缘/中心与其它节点对齐时显示电粉参考线（Alt 暂时关闭）
+ * ④ 空格 / 鼠标中键 = 平移；方向键微调（Shift = 10px）；Ctrl+A 全选；Esc 取消
+ * ⑤ 移动端：单指拖节点、空白单指平移、双指缩放（沿用触控处理器）
+ * ⑥ 多选浮条：批量换运镜 / 替代方案 / 比较模式 + 左·中·右对齐 / 纵向等距
+ */
+function wbStageOf(box){ return box.querySelector('[data-wb-stage]'); }
+function wbKeyOf(node){ return node.getAttribute('data-k'); }
+/* —— 选中集：_msel 存 data-k 数组；_sel 存主镜号（供单镜语义与浮条定位） —— */
+function wbSelKeys(box){ return (box._wb&&box._wb._msel)||[]; }
+function wbApplySelClasses(box){
+  var keys=wbSelKeys(box);
+  var ns=box.querySelectorAll('.wb-node');
+  for(var i=0;i<ns.length;i++){
+    if(keys.indexOf(wbKeyOf(ns[i]))>=0) ns[i].classList.add('sel');
+    else ns[i].classList.remove('sel');
+  }
+}
+function wbSelectExclusive(box,node){
+  box._wb._msel=[wbKeyOf(node)];
+  box._wb._sel=+node.getAttribute('data-i');
+  wbApplySelClasses(box);
+}
+function wbToggleSel(box,node){
+  var keys=wbSelKeys(box).slice(), k=wbKeyOf(node), i=keys.indexOf(k);
+  if(i>=0) keys.splice(i,1); else keys.push(k);
+  box._wb._msel=keys;
+  if(keys.length) box._wb._sel=+node.getAttribute('data-i');
+  wbApplySelClasses(box);
+}
+function wbClearSel(box){
+  if(box._wb){ box._wb._msel=[]; box._wb._sel=null; }
+  wbApplySelClasses(box);
+  var fl=box.querySelector('[data-wb-float]'); if(fl) fl.style.display='none';
+}
+function wbIsSel(box,node){ return wbSelKeys(box).indexOf(wbKeyOf(node))>=0; }
+function wbSelectAll(box){
+  var keys=[], ns=box.querySelectorAll('.wb-node');
+  for(var i=0;i<ns.length;i++) keys.push(wbKeyOf(ns[i]));
+  box._wb._msel=keys;
+  if(ns.length) box._wb._sel=+ns[ns.length-1].getAttribute('data-i');
+  wbApplySelClasses(box); wbRefreshFloat(box);
+  toast('已全选 '+keys.length+' 个节点');
+}
+/* 选中节点对应的镜号（去重，供批量换运镜 / 替代方案 / 比较） */
+function wbSelShotNos(box){
+  var nos=[], seen={};
+  wbSelKeys(box).forEach(function(k){
+    var m=/^s(\d+)_/.exec(k||''); if(!m) return;
+    var no=+m[1]; if(!seen[no]){ seen[no]=1; nos.push(no); }
+  });
+  return nos;
+}
+/* —— 浮条：单选 = 镜头操作；多选 = 批量操作 + 对齐工具 —— */
+function wbRefreshFloat(box){
+  var fl=box.querySelector('[data-wb-float]'); if(!fl) return;
+  var keys=wbSelKeys(box);
+  if(!keys.length){ fl.style.display='none'; return; }
+  fl.style.display='flex';
+  fl.style.left='50%'; fl.style.top='56px'; fl.style.transform='translateX(-50%)';
+  if(keys.length>1){
+    fl.innerHTML='<span class="fb-count">已选 '+keys.length+' 个节点</span>'
+      +'<button type="button" data-fb="alt">+ 替代方案</button>'
+      +'<button type="button" data-fb="cam">换运镜</button>'
+      +'<button type="button" data-fb="cmp">比较模式</button>'
+      +'<span class="fb-sep"></span>'
+      +'<button type="button" data-fbal="l">左对齐</button>'
+      +'<button type="button" data-fbal="cx">水平居中</button>'
+      +'<button type="button" data-fbal="r">右对齐</button>'
+      +'<button type="button" data-fbal="dy">纵向等距</button>';
+  } else {
+    fl.innerHTML='<button type="button" data-fb="alt">+ 替代方案</button>'
+      +'<button type="button" data-fb="cam">换运镜</button>'
+      +'<button type="button" data-fb="cmp">比较模式</button>';
+  }
+}
+/* —— 视图：适应窗口按内容包围盒实算，非写死 0.7 —— */
+function wbFitView(box){
+  var st=box._wb; if(!st) return;
+  var stage=wbStageOf(box); if(!stage) return;
+  var wb=worldBox(box);
+  var sw=stage.clientWidth, sh=stage.clientHeight;
+  var sc=Math.min((sw-60)/wb.w,(sh-60)/wb.h,1);
+  st.scale=Math.min(2,Math.max(0.3,sc));
+  st.tx=(sw-wb.w*st.scale)/2; st.ty=(sh-wb.h*st.scale)/2;
+  applyWbTransform(box); drawMinimap(box);
+}
+/* 以舞台内某点（或舞台中心）为锚缩放 */
+function wbZoomAt(box,f,mx,my){
+  var st=box._wb; if(!st) return;
+  var stage=wbStageOf(box); if(!stage) return;
+  if(mx==null){ mx=stage.clientWidth/2; my=stage.clientHeight/2; }
+  var ns=Math.min(2,Math.max(0.3,st.scale*f));
+  var wx=(mx-st.tx)/st.scale, wy=(my-st.ty)/st.scale;
+  st.scale=ns; st.tx=mx-wx*ns; st.ty=my-wy*ns;
+  applyWbTransform(box); drawMinimap(box);
+}
+/* —— 吸附：主节点三条边（左/中/右、上/中/下）vs 其它节点，8 屏幕像素阈值 —— */
+function wbSnap(box,dragEl,offs,tx,ty){
+  var st=box._wb, TH=8/st.scale;
+  var dragKeys={}; offs.forEach(function(o){ dragKeys[wbKeyOf(o.el)]=1; });
+  var dw=dragEl.offsetWidth, dh=dragEl.offsetHeight;
+  var myX=[tx,tx+dw/2,tx+dw], myY=[ty,ty+dh/2,ty+dh];
+  var bestX=null,bestY=null,gx=null,gy=null;
+  var ns=box.querySelectorAll('.wb-node');
+  for(var i=0;i<ns.length;i++){
+    var nd=ns[i]; if(dragKeys[wbKeyOf(nd)]) continue;
+    var nx=nd.offsetLeft, ny=nd.offsetTop, nw=nd.offsetWidth, nh=nd.offsetHeight;
+    var thX=[nx,nx+nw/2,nx+nw], thY=[ny,ny+nh/2,ny+nh];
+    for(var a=0;a<3;a++){
+      for(var b=0;b<3;b++){
+        var d=thX[b]-myX[a];
+        if(Math.abs(d)<TH&&(bestX===null||Math.abs(d)<Math.abs(bestX))){ bestX=d; gx=thX[b]; }
+        var d2=thY[b]-myY[a];
+        if(Math.abs(d2)<TH&&(bestY===null||Math.abs(d2)<Math.abs(bestY))){ bestY=d2; gy=thY[b]; }
+      }
+    }
+  }
+  return {dx:bestX||0,dy:bestY||0,gx:bestX!==null?gx:null,gy:bestY!==null?gy:null};
+}
+function wbShowGuides(box,sg){
+  var g=box.querySelector('[data-wb-guides]'); if(!g) return;
+  var st=box._wb, html='';
+  if(sg.gx!==null&&sg.gx!==undefined) html+='<i class="wg-v" style="left:'+(sg.gx*st.scale+st.tx)+'px"></i>';
+  if(sg.gy!==null&&sg.gy!==undefined) html+='<i class="wg-h" style="top:'+(sg.gy*st.scale+st.ty)+'px"></i>';
+  g.innerHTML=html;
+  if(html) g.classList.add('on'); else g.classList.remove('on');
+}
+function wbHideGuides(box){
+  var g=box.querySelector('[data-wb-guides]');
+  if(g){ g.classList.remove('on'); g.innerHTML=''; }
+}
+/* —— 对齐 / 等距（作用于全部选中节点，主节点为 _sel 对应节点） —— */
+function wbAlign(box,mode){
+  var keys=wbSelKeys(box); if(keys.length<2) return;
+  var els=[];
+  keys.forEach(function(k){ var nd=box.querySelector('.wb-node[data-k="'+k+'"]'); if(nd) els.push(nd); });
+  if(els.length<2) return;
+  var primary=null;
+  for(var i=0;i<els.length;i++){ if(+els[i].getAttribute('data-i')===box._wb._sel){ primary=els[i]; break; } }
+  if(!primary) primary=els[0];
+  var px=primary.offsetLeft, pw=primary.offsetWidth;
+  if(mode==='l'||mode==='cx'||mode==='r'){
+    for(var j=0;j<els.length;j++){
+      var nd=els[j];
+      var x=mode==='l'?px:(mode==='r'?px+pw-nd.offsetWidth:px+pw/2-nd.offsetWidth/2);
+      x=Math.max(0,x);
+      nd.style.left=x+'px';
+      WB_POS[wbKeyOf(nd)]={x:x,y:nd.offsetTop};
+    }
+  } else if(mode==='dy'){
+    var sorted=els.slice().sort(function(a,b){ return a.offsetTop-b.offsetTop; });
+    var top1=sorted[0].offsetTop;
+    var bottomLast=sorted[sorted.length-1].offsetTop+sorted[sorted.length-1].offsetHeight;
+    var sumH=0;
+    for(var k=0;k<sorted.length;k++) sumH+=sorted[k].offsetHeight;
+    var gap=(bottomLast-top1-sumH)/(sorted.length-1), y=top1;
+    for(var m=0;m<sorted.length;m++){
+      sorted[m].style.top=y+'px';
+      WB_POS[wbKeyOf(sorted[m])]={x:sorted[m].offsetLeft,y:y};
+      y+=sorted[m].offsetHeight+gap;
+    }
+  }
+  drawLinks(box); drawMinimap(box);
+  toast('已对齐 '+els.length+' 个节点');
+}
+/* —— 方向键微调整组选中 —— */
+function wbNudge(box,dx,dy){
+  wbSelKeys(box).forEach(function(k){
+    var nd=box.querySelector('.wb-node[data-k="'+k+'"]');
+    if(!nd) return;
+    var nx=Math.max(0,nd.offsetLeft+dx), ny=Math.max(0,nd.offsetTop+dy);
+    nd.style.left=nx+'px'; nd.style.top=ny+'px';
+    WB_POS[k]={x:nx,y:ny};
+  });
+  drawLinks(box); drawMinimap(box);
+}
+/* ===== 统一手势引擎：一次 pointerdown 分发型态（拖节点 / 框选 / 平移） ===== */
+function wbGestureBind(box){
+  var stage=wbStageOf(box); if(!stage) return;
+  /* 交互元素不启手势：按钮/端口/可编辑台词/折叠摘要/浮条/小地图/工具条/素材库/图例/缩放条 */
+  function isUI(t){
+    return !!(t.closest&&t.closest('button,a,input,textarea,select,summary,[data-edit="line"],[contenteditable="true"],.wb-mini,.wb-top,.wb-assets,.wb-legend,.wb-zoombar,.wb-float'));
+  }
+  box.addEventListener('pointerdown',function(e){
+    var st=box._wb; if(!st) return;
+    /* 每次按下先重置吞标：pointer capture 会把尾随 click 重定向到舞台，
+       若不清除，上一次手势的吞标可能误吃按钮点击 */
+    box._wbSuppressClick=0;
+    if(e.button===2) return; /* 右键放过 */
+    var t=e.target;
+    if(isUI(t)) return;
+    /* 空格或中键 → 平移 */
+    if(st._space||e.button===1){ wbStartPan(box,e); return; }
+    var node=t.closest?t.closest('.wb-node'):null;
+    if(node){
+      if(e.shiftKey) wbToggleSel(box,node);
+      else if(!wbIsSel(box,node)) wbSelectExclusive(box,node);
+      wbRefreshFloat(box);
+      wbStartNodeDrag(box,e,node);
+      return;
+    }
+    /* 触屏空白处交给触控处理器（单指平移/双指缩放），鼠标空白处才框选 */
+    if(e.pointerType==='touch'){
+      /* 轻点空白 = 取消选择：touchstart 的 preventDefault 会吞掉合成 click，
+         只能在这里挂一个 pointerup 观察器补上（位移<6px 视为轻点） */
+      var stg=wbStageOf(box); if(!stg) return;
+      var stx=e.clientX, sty=e.clientY;
+      function tup(ev){
+        stg.removeEventListener('pointerup',tup); stg.removeEventListener('pointercancel',tup);
+        if(Math.abs(ev.clientX-stx)+Math.abs(ev.clientY-sty)<6) wbClearSel(box);
+      }
+      stg.addEventListener('pointerup',tup); stg.addEventListener('pointercancel',tup);
+      return;
+    }
+    wbStartMarquee(box,e);
+  });
+  /* —— 框选 —— */
+  function wbStartMarquee(box,e){
+    var st=box._wb;
+    var stage=wbStageOf(box); if(!stage) return; /* innerHTML 重绘后舞台是全新元素，必须现取 */
+    var rect=stage.getBoundingClientRect();
+    var sx=e.clientX-rect.left, sy=e.clientY-rect.top;
+    var mq=box.querySelector('[data-wb-marquee]');
+    var moved=false, lastNode=null;
+    try{ stage.setPointerCapture(e.pointerId); }catch(_){}
+    function mv(ev){
+      var cx=ev.clientX-rect.left, cy=ev.clientY-rect.top;
+      if(!moved&&Math.abs(cx-sx)+Math.abs(cy-sy)<4) return;
+      moved=true;
+      mq.hidden=false; mq.classList.add('on');
+      var x=Math.min(sx,cx),y=Math.min(sy,cy),w=Math.abs(cx-sx),h=Math.abs(cy-sy);
+      mq.style.left=x+'px'; mq.style.top=y+'px'; mq.style.width=w+'px'; mq.style.height=h+'px';
+      /* 命中测试：节点世界坐标 × scale + 平移 = 屏幕坐标 */
+      var hit=[], ns=box.querySelectorAll('.wb-node');
+      for(var i=0;i<ns.length;i++){
+        var nd=ns[i];
+        var nx=nd.offsetLeft*st.scale+st.tx, ny=nd.offsetTop*st.scale+st.ty;
+        var nw=nd.offsetWidth*st.scale, nh=nd.offsetHeight*st.scale;
+        if(nx<x+w&&nx+nw>x&&ny<y+h&&ny+nh>y){ hit.push(wbKeyOf(nd)); lastNode=nd; }
+      }
+      st._msel=hit;
+      st._sel=lastNode?+lastNode.getAttribute('data-i'):null;
+      wbApplySelClasses(box); wbRefreshFloat(box);
+    }
+    function up(){
+      stage.removeEventListener('pointermove',mv); stage.removeEventListener('pointerup',up); stage.removeEventListener('pointercancel',up);
+      mq.classList.remove('on'); mq.hidden=true;
+      if(!moved) wbClearSel(box); /* 原地单击 = 取消选择 */
+      box._wbSuppressClick=1; /* 吞掉尾随 click：capture 会将其重定向到舞台，误触清空 */
+    }
+    stage.addEventListener('pointermove',mv); stage.addEventListener('pointerup',up); stage.addEventListener('pointercancel',up);
+    e.preventDefault();
+  }
+  /* —— 节点拖动（单选或整组多选） —— */
+  function wbStartNodeDrag(box,e,node){
+    var st=box._wb;
+    var stage=wbStageOf(box); if(!stage) return; /* 重绘后舞台是全新元素，必须现取 */
+    var rect=stage.getBoundingClientRect();
+    var keys=wbSelKeys(box);
+    var offs=[];
+    for(var i=0;i<keys.length;i++){
+      var nd=box.querySelector('.wb-node[data-k="'+keys[i]+'"]');
+      if(nd) offs.push({el:nd,key:keys[i]});
+    }
+    /* 保险：按下节点必须入组 */
+    var inside=false;
+    for(var j=0;j<offs.length;j++){ if(offs[j].el===node){ inside=true; break; } }
+    if(!inside) offs.push({el:node,key:wbKeyOf(node)});
+    var gx=(e.clientX-rect.left-st.tx)/st.scale, gy=(e.clientY-rect.top-st.ty)/st.scale;
+    /* 记录按下时的初始位置：位移必须基于初始值计算，否则实时 offsetLeft 会复利叠加 */
+    offs.forEach(function(o){ o.x0=o.el.offsetLeft; o.y0=o.el.offsetTop; o.el.classList.add('dragging'); });
+    var moved=false, raf=false;
+    try{ stage.setPointerCapture(e.pointerId); }catch(_){}
+    function mv(ev){
+      var wx=(ev.clientX-rect.left-st.tx)/st.scale, wy=(ev.clientY-rect.top-st.ty)/st.scale;
+      if(!moved&&Math.abs(ev.clientX-e.clientX)+Math.abs(ev.clientY-e.clientY)<3) return;
+      moved=true;
+      /* 指针位移（世界单位） */
+      var sx2=wx-gx, sy2=wy-gy;
+      /* 吸附：主节点目标位置 vs 其它节点边缘/中心（Alt 按下时关闭） */
+      if(!ev.altKey){
+        var primary=offs[0];
+        var sg=wbSnap(box,primary.el,offs,primary.x0+sx2,primary.y0+sy2);
+        sx2+=sg.dx; sy2+=sg.dy;
+        wbShowGuides(box,sg);
+      } else {
+        wbHideGuides(box);
+      }
+      /* 初始位置 + 位移，整组等距同移 */
+      for(var i=0;i<offs.length;i++){
+        var o=offs[i];
+        var nx=Math.max(0,o.x0+sx2), ny=Math.max(0,o.y0+sy2);
+        o.el.style.left=nx+'px'; o.el.style.top=ny+'px';
+        if(o.key) WB_POS[o.key]={x:nx,y:ny};
+      }
+      if(!raf){ raf=true; requestAnimationFrame(function(){ raf=false; drawLinks(box); drawMinimap(box); }); }
+    }
+    function up(){
+      stage.removeEventListener('pointermove',mv); stage.removeEventListener('pointerup',up); stage.removeEventListener('pointercancel',up);
+      for(var i=0;i<offs.length;i++) offs[i].el.classList.remove('dragging');
+      wbHideGuides(box);
+      box._wbSuppressClick=1; /* 无条件吞掉尾随 click：单击也要保留选中，防被空白分支清掉 */
+    }
+    stage.addEventListener('pointermove',mv); stage.addEventListener('pointerup',up); stage.addEventListener('pointercancel',up);
+    e.preventDefault();
+  }
+  /* —— 平移（空格 / 中键） —— */
+  function wbStartPan(box,e){
+    var st=box._wb;
+    var stage=wbStageOf(box); if(!stage) return; /* 重绘后舞台是全新元素，必须现取 */
+    var sx=e.clientX-st.tx, sy=e.clientY-st.ty;
+    stage.classList.add('panning');
+    try{ stage.setPointerCapture(e.pointerId); }catch(_){}
+    function mv(ev){ st.tx=ev.clientX-sx; st.ty=ev.clientY-sy; applyWbTransform(box); drawMinimap(box); }
+    function up(){
+      stage.classList.remove('panning');
+      stage.removeEventListener('pointermove',mv); stage.removeEventListener('pointerup',up); stage.removeEventListener('pointercancel',up);
+      box._wbSuppressClick=1;
+    }
+    stage.addEventListener('pointermove',mv); stage.addEventListener('pointerup',up); stage.addEventListener('pointercancel',up);
+    e.preventDefault();
+  }
+}
+/* 键盘：空格平移 / 方向键微调 / Ctrl+A 全选 / Esc 取消 */
+function wbKeyBind(){
+  document.addEventListener('keydown',function(e){
+    var box=document.getElementById('panelCanvas');
+    if(!box||!box._wb||!box.offsetParent) return;
+    var tag=(e.target&&e.target.tagName)||'';
+    if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT') return;
+    if(e.target&&e.target.isContentEditable) return;
+    var modal=document.getElementById('apiModal');
+    if(modal&&modal.classList.contains('open')) return; /* API 弹窗优先 */
+    if(e.code==='Space'){
+      if(tag==='BUTTON') return; /* 别抢按钮的空格激活 */
+      if(!box._wb._space){
+        box._wb._space=1;
+        var st0=wbStageOf(box); if(st0) st0.classList.add('spacepan');
+      }
+      e.preventDefault(); return;
+    }
+    if(e.key==='Escape'){ wbClearSel(box); return; }
+    if((e.ctrlKey||e.metaKey)&&(e.key==='a'||e.key==='A')){ e.preventDefault(); wbSelectAll(box); return; }
+    if(!wbSelKeys(box).length) return;
+    var step=e.shiftKey?10:1, dx=0, dy=0;
+    if(e.key==='ArrowLeft'){ dx=-step; e.preventDefault(); }
+    else if(e.key==='ArrowRight'){ dx=step; e.preventDefault(); }
+    else if(e.key==='ArrowUp'){ dy=-step; e.preventDefault(); }
+    else if(e.key==='ArrowDown'){ dy=step; e.preventDefault(); }
+    else return;
+    wbNudge(box,dx,dy);
+  });
+  document.addEventListener('keyup',function(e){
+    if(e.code!=='Space') return;
+    var box=document.getElementById('panelCanvas');
+    if(box&&box._wb){
+      box._wb._space=0;
+      var st=wbStageOf(box); if(st) st.classList.remove('spacepan');
+    }
+  });
+}
 function bindWorkbench(){
   var box=document.getElementById('panelCanvas');
   if(!box||box._wbBound) return; box._wbBound=1;
-  /* R4: 节点头自由拖拽（连线实时跟随） */
-  box.addEventListener('pointerdown',function(e){
-    var st=box._wb; if(!st) return;
-    var head=e.target.closest?e.target.closest('.wb-nodehead'):null;
-    if(!head) return;
-    var node=head.parentNode;
-    var key=node.getAttribute('data-k');
-    e.preventDefault(); e.stopPropagation();
-    try{ head.setPointerCapture(e.pointerId); }catch(_){}
-    node.classList.add('dragging');
-    var stage=box.querySelector('[data-wb-stage]');
-    var rect=stage.getBoundingClientRect();
-    var grabX=(e.clientX-rect.left-st.tx)/st.scale - node.offsetLeft;
-    var grabY=(e.clientY-rect.top-st.ty)/st.scale - node.offsetTop;
-    var rafPending=false;
-    function scheduleRedraw(){
-      if(rafPending) return; rafPending=true;
-      requestAnimationFrame(function(){ rafPending=false; drawLinks(box); drawMinimap(box); });
-    }
-    function mv(ev){
-      var nx=(ev.clientX-rect.left-st.tx)/st.scale - grabX;
-      var ny=(ev.clientY-rect.top-st.ty)/st.scale - grabY;
-      nx=Math.max(0,nx); ny=Math.max(0,ny);
-      node.style.left=nx+'px'; node.style.top=ny+'px';
-      if(key) WB_POS[key]={x:nx,y:ny};
-      scheduleRedraw();
-    }
-    function up(){
-      node.classList.remove('dragging');
-      head.removeEventListener('pointermove',mv); head.removeEventListener('pointerup',up); head.removeEventListener('pointercancel',up);
-    }
-    head.addEventListener('pointermove',mv);
-    head.addEventListener('pointerup',up); head.addEventListener('pointercancel',up);
-  });
-  /* 背景平移 */
-  box.addEventListener('mousedown',function(e){
-    var st=box._wb; if(!st) return;
-    if(e.target.closest('.wb-nodehead')) return;
-    if(e.target.closest('.wbn-actions button')||e.target.closest('.wb-btn')||e.target.closest('.wb-zbtn')||e.target.closest('.cv-aghead')||e.target.closest('.wb-assets')||e.target.closest('.wb-rows button')||e.target.closest('.wbn-line')||e.target.closest('.wb-float')||e.target.closest('.wb-mini')) return;
-    var sx=e.clientX-st.tx, sy=e.clientY-st.ty;
-    function mv2(ev){ st.tx=ev.clientX-sx; st.ty=ev.clientY-sy; applyWbTransform(box); drawMinimap(box); }
-    function up2(){ document.removeEventListener('mousemove',mv2); document.removeEventListener('mouseup',up2); }
-    document.addEventListener('mousemove',mv2); document.addEventListener('mouseup',up2);
-    e.preventDefault();
-  });
+  /* 画布交互 2.0：统一手势引擎（节点拖动 / 框选 / 空格·中键平移）+ 键盘快捷键 */
+  wbGestureBind(box);
+  wbKeyBind();
   box.addEventListener('wheel',function(e){
     var st=box._wb; if(!st) return;
     if(e.target.closest('.wb-assets')) return;
@@ -2148,6 +2518,8 @@ function bindWorkbench(){
   });
   box.addEventListener('click',function(e){
     var t=e.target;
+    /* 拖拽/框选/平移产生的尾随 click 一律吞掉，防止误清空选择或误触 */
+    if(box._wbSuppressClick){ box._wbSuppressClick=0; return; }
     /* 素材库开关 */
     if(t.closest&&t.closest('[data-wb-assets]')){
       var p=box.querySelector('[data-wb-assets-panel]'); if(p){ p.hidden=!p.hidden; p.classList.toggle('open',!p.hidden); }
@@ -2160,23 +2532,27 @@ function bindWorkbench(){
       (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(function(){ toast('整集分镜稿已复制（'+txt.length+'字）'); },function(){ toast(txt); });
       return;
     }
-    /* 缩放 */
+    /* 缩放（以舞台中心为锚） */
     if(t.closest&&t.closest('[data-wb-z]')){
       var z=t.closest('[data-wb-z]').getAttribute('data-wb-z');
-      var f=z==='+'?1.15:0.87; box._wb.scale=Math.min(2,Math.max(0.3,box._wb.scale*f)); applyWbTransform(box); drawMinimap(box); return;
+      wbZoomAt(box, z==='+'?1.15:0.87); return;
     }
-    if(t.closest&&t.closest('[data-wb-fit]')){ box._wb.tx=20; box._wb.ty=30; box._wb.scale=isMobile()?1:0.7; applyWbTransform(box); drawMinimap(box); return; }
-    /* 行折叠（保留当前平移/缩放/选中，不重置视图） */
+    /* 适应：按内容包围盒实算缩放与居中 */
+    if(t.closest&&t.closest('[data-wb-fit]')){ wbFitView(box); return; }
+    /* 重排：清空自由布局，恢复默认列布局并适应视图 */
+    if(t.closest&&t.closest('[data-wb-tidy]')){
+      WB_POS={};
+      renderCanvas(); box._cvBuilt=1;
+      wbFitView(box);
+      toast('已重排为默认列布局'); return;
+    }
+    /* 行折叠（renderCanvas 自动保留平移/缩放/多选，无需手动搬运） */
     var rowBtn=t.closest?t.closest('[data-row]'):null;
     if(rowBtn){
       box.querySelectorAll('.wb-rows button').forEach(function(b){b.classList.remove('on');});
       rowBtn.classList.add('on');
-      var prevTx=box._wb.tx, prevTy=box._wb.ty, prevScale=box._wb.scale, prevSel=box._wb._sel, prevCmp=box._wb._compare;
       box._wb._rows=rowBtn.getAttribute('data-row')==='script'?'script':rowBtn.getAttribute('data-row')==='all'?'all':'script+image';
       renderCanvas(); box._cvBuilt=1;
-      box._wb.tx=prevTx; box._wb.ty=prevTy; box._wb.scale=prevScale; box._wb._sel=prevSel; box._wb._compare=prevCmp;
-      if(prevSel){ var nn=box.querySelector('.wb-node[data-i="'+prevSel+'"]'); if(nn) nn.classList.add('sel'); }
-      applyWbTransform(box); drawMinimap(box);
       return;
     }
     /* 素材库折叠 */
@@ -2219,49 +2595,66 @@ function bindWorkbench(){
       renderCanvas(); box._cvBuilt=1;
       toast('变体已删除'); return;
     }
-    /* DS-23: 浮条按钮 */
+    /* DS-23: 浮条按钮（单选=本镜；多选=批量作用于全部选中镜号） */
     var fb=t.closest?t.closest('[data-fb]'):null;
     if(fb){
       var act=fb.getAttribute('data-fb');
-      var sel=box._wb._sel; if(!sel) return;
-      var s=state.shots[sel-1]; if(!s) return;
-      if(act==='alt'){
-        pushHistory();
-        if(!s.alts) s.alts=[];
-        if(s.alts.length>=3){ toast('单镜最多 3 个变体'); return; }
-        var arr=BEAT_CAM[s.beat]||BEAT_CAM['冲突推进'];
-        var nextIdx=((s.camIdx||0)+1+s.alts.length)%arr.length;
-        s.alts.push({cam:arr[nextIdx], camIdx:nextIdx});
-        renderCanvas(); box._cvBuilt=1;
-        /* 重渲染后重新选中+浮条 */
-        box._wb._sel=sel;
-        var newNode=box.querySelector('.wb-node[data-type="script"][data-i="'+sel+'"]');
-        if(newNode){ newNode.classList.add('sel'); var fl2=box.querySelector('[data-wb-float]'); fl2.style.display='flex'; fl2.innerHTML='<button type="button" data-fb="alt">+ 替代方案</button><button type="button" data-fb="cam">换运镜</button><button type="button" data-fb="cmp">比较模式</button>'; }
-        toast('已生成 '+String.fromCharCode(96+s.alts.length)+' 变体');
-      } else if(act==='cam'){
-        pushHistory();
-        var arr2=BEAT_CAM[s.beat]||BEAT_CAM['冲突推进'];
-        s.camIdx=((s.camIdx||0)+1)%arr2.length; s.cam=arr2[s.camIdx];
-        renderCanvas(); box._cvBuilt=1;
-        box._wb._sel=sel;
-        var nn2=box.querySelector('.wb-node[data-type="script"][data-i="'+sel+'"]');
-        if(nn2){ nn2.classList.add('sel'); var fl3=box.querySelector('[data-wb-float]'); fl3.style.display='flex'; fl3.innerHTML='<button type="button" data-fb="alt">+ 替代方案</button><button type="button" data-fb="cam">换运镜</button><button type="button" data-fb="cmp">比较模式</button>'; }
-        toast('镜 '+s.no+' 运镜已换：'+s.cam);
-      } else if(act==='cmp'){
+      var nos=wbSelShotNos(box);
+      if(!nos.length) return;
+      /* 比较模式：聚焦全部选中节点，再点一次退出 */
+      if(act==='cmp'){
         var world=box.querySelector('[data-wb-world]');
-        if(box._wb._compare===sel){
-          box._wb._compare=null; world.classList.remove('compare');
-          world.querySelectorAll('.wb-node').forEach(function(n){n.classList.remove('compare-focus');});
+        var cmp=box._wb._compare;
+        var same=cmp&&cmp.length===nos.length&&cmp.every(function(v){ return nos.indexOf(v)>=0; });
+        if(same){
+          box._wb._compare=null;
+          if(world){ world.classList.remove('compare'); world.querySelectorAll('.wb-node').forEach(function(n){n.classList.remove('compare-focus');}); }
         } else {
-          box._wb._compare=sel; world.classList.add('compare');
-          world.querySelectorAll('.wb-node').forEach(function(n){
-            var ni=+n.getAttribute('data-i');
-            if(ni===sel) n.classList.add('compare-focus'); else n.classList.remove('compare-focus');
-          });
+          box._wb._compare=nos.slice();
+          if(world){
+            world.classList.add('compare');
+            world.querySelectorAll('.wb-node').forEach(function(n){
+              var ni=+n.getAttribute('data-i');
+              if(nos.indexOf(ni)>=0) n.classList.add('compare-focus'); else n.classList.remove('compare-focus');
+            });
+          }
+        }
+        return;
+      }
+      /* 替代方案：先数够不够额度，不够就不进历史栈 */
+      if(act==='alt'){
+        var eligible=0;
+        for(var q=0;q<nos.length;q++){
+          var sq=state.shots[nos[q]-1];
+          if(sq&&(!sq.alts||sq.alts.length<3)) eligible++;
+        }
+        if(!eligible){ toast('所选镜头都已满 3 个变体'); return; }
+      }
+      pushHistory();
+      var changed=0;
+      for(var gi=0;gi<nos.length;gi++){
+        var s=state.shots[nos[gi]-1]; if(!s) continue;
+        if(act==='alt'){
+          if(!s.alts) s.alts=[];
+          if(s.alts.length>=3) continue;
+          var arr=BEAT_CAM[s.beat]||BEAT_CAM['冲突推进'];
+          var nextIdx=((s.camIdx||0)+1+s.alts.length)%arr.length;
+          s.alts.push({cam:arr[nextIdx], camIdx:nextIdx});
+          changed++;
+        } else if(act==='cam'){
+          var arr2=BEAT_CAM[s.beat]||BEAT_CAM['冲突推进'];
+          s.camIdx=((s.camIdx||0)+1)%arr2.length; s.cam=arr2[s.camIdx];
+          changed++;
         }
       }
+      if(!changed) return;
+      renderCanvas(); box._cvBuilt=1;
+      toast(act==='alt'?('已为 '+changed+' 镜生成变体'):('已为 '+changed+' 镜换运镜'));
       return;
     }
+    /* 多选对齐工具（左/中/右/纵向等距） */
+    var fa=t.closest?t.closest('[data-fbal]'):null;
+    if(fa){ wbAlign(box, fa.getAttribute('data-fbal')); return; }
     /* DS-24: minimap 点击 */
     var mm=t.closest?t.closest('[data-wb-mini]'):null;
     if(mm){
@@ -2275,34 +2668,28 @@ function bindWorkbench(){
       applyWbTransform(box); drawMinimap(box);
       return;
     }
-    /* DS-23: 节点选中 → 浮条 */
+    /* DS-23: 节点选中 → 浮条（pointerdown 已覆盖主流路径；此处兜底 data-edit 等免手势区域） */
     var node=t.closest?t.closest('.wb-node'):null;
     if(node){
-      var no=+node.getAttribute('data-i');
-      /* 清除旧选中 */
-      box.querySelectorAll('.wb-node.sel').forEach(function(n){n.classList.remove('sel');});
-      box.querySelectorAll('.wb-node.compare-focus').forEach(function(n){n.classList.remove('compare-focus');});
-      node.classList.add('sel');
-      box._wb._sel=no;
-      /* 定位浮条 */
-      var float=box.querySelector('[data-wb-float]');
-      float.style.display='flex';
-      float.style.left='50%';
-      float.style.top='56px';
-      float.style.transform='translateX(-50%)';
-      float.innerHTML='<button type="button" data-fb="alt">+ 替代方案</button><button type="button" data-fb="cam">换运镜</button><button type="button" data-fb="cmp">比较模式</button>';
+      if(!e.shiftKey&&!wbIsSel(box,node)) wbSelectExclusive(box,node);
+      /* 比较模式下点中聚焦节点 = 退出比较（沿用旧语义） */
+      if(box._wb._compare&&!e.shiftKey){
+        box._wb._compare=null;
+        var w0=box.querySelector('[data-wb-world]');
+        if(w0){ w0.classList.remove('compare'); w0.querySelectorAll('.wb-node').forEach(function(n){n.classList.remove('compare-focus');}); }
+      }
+      wbRefreshFloat(box);
       return;
     }
-    /* 点击空白取消选中 + 收浮条 */
-    if(!t.closest('.wb-node') && !t.closest('.wb-float')){
-      box.querySelectorAll('.wb-node.sel').forEach(function(n){n.classList.remove('sel');});
-      var fl=box.querySelector('[data-wb-float]'); if(fl) fl.style.display='none';
-      box._wb._sel=null;
-    }
+    /* 点击空白取消选中 + 收浮条（与框选 pointerup 的清除幂等） */
+    if(!t.closest('.wb-node')&&!t.closest('.wb-float')) wbClearSel(box);
   });
-  /* 移动端触控 */
+  /* 移动端触控：空白处单指平移 / 双指缩放；节点主体上的触摸交给统一手势（单指拖节点） */
   box.addEventListener('touchstart',function(e){
     var st=box._wb; if(!st) return;
+    /* 节点主体（非按钮/可编辑/折叠）→ 交给 pointer 手势拖节点 */
+    var _nt=e.target.closest?e.target.closest('.wb-node'):null;
+    if(_nt&&!e.target.closest('button,[data-edit="line"],summary,.wbn-del-alt')) return;
     if(e.target.closest('.wb-assets')||e.target.closest('.wbn-actions')||e.target.closest('.cv-agbody')||e.target.closest('.wb-nodehead')||e.target.closest('.wbn-line')||e.target.closest('.wb-btn')||e.target.closest('.wb-zbtn')||e.target.closest('.wb-rows button')||e.target.closest('.wb-float')) return;
     var stage=box.querySelector('[data-wb-stage]');
     if(e.touches.length===1){
@@ -2316,6 +2703,9 @@ function bindWorkbench(){
   },{passive:false});
   box.addEventListener('touchmove',function(e){
     var st=box._wb; if(!st) return;
+    /* 节点主体上的移动由 pointer 手势处理，避免双路径打架 */
+    var _nt2=e.target.closest?e.target.closest('.wb-node'):null;
+    if(_nt2&&!e.target.closest('button,[data-edit="line"],summary,.wbn-del-alt')) return;
     if(e.target.closest('.wb-assets')||e.target.closest('.wbn-actions')||e.target.closest('.wb-nodehead')||e.target.closest('.wbn-line')) return;
     if(e.touches.length===1 && st._tp && st._tp.dist===0){
       var t=e.touches[0];
