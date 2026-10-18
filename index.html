@@ -550,6 +550,53 @@
     body.canvas-mode .wb-main{height:calc(100vh - 54px)}
   }
 
+  /* ===== Galaxy（Uiverse.io · MIT）组件适配：主 CTA 光泽 / 取景框 / 聚焦光晕 / AI 加载环 ===== */
+  /* ① 主 CTA：135deg 品牌渐变 + 同色系投影 + 高光扫过（源 Codecite_modern-pig-84，改色适配） */
+  .btn.primary{
+    background:linear-gradient(135deg,var(--accent) 0%,var(--accent-strong) 100%);
+    box-shadow:0 10px 26px -8px rgba(255,77,109,.5),inset 0 1px 0 rgba(255,255,255,.16);
+  }
+  .btn.primary::after{
+    content:"";position:absolute;top:0;left:-90%;width:55%;height:100%;pointer-events:none;
+    background:linear-gradient(105deg,transparent,rgba(255,255,255,.30),transparent);
+    transform:skewX(-18deg);transition:left .6s var(--ease-out);
+  }
+  @media(hover:hover) and (pointer:fine){
+    .btn.primary:hover{box-shadow:0 16px 34px -8px rgba(255,77,109,.6),inset 0 1px 0 rgba(255,255,255,.16)}
+    .btn.primary:hover::after{left:135%}
+  }
+  .gen-btn{
+    background:linear-gradient(135deg,var(--accent) 0%,var(--accent-strong) 100%);
+    box-shadow:0 10px 26px -8px rgba(255,77,109,.5),inset 0 1px 0 rgba(255,255,255,.16);
+  }
+  @media(hover:hover) and (pointer:fine){
+    .gen-btn:hover{box-shadow:0 16px 34px -8px rgba(255,77,109,.6),inset 0 1px 0 rgba(255,255,255,.16)}
+  }
+  /* ② 画布主按钮：取景框四角描边，hover 时向外展开（源 Dashrath-Sharma_wet-zebra-95，红→薄荷） */
+  .wb-btn.primary .vf{position:absolute;width:9px;height:9px;border:0 solid var(--teal);opacity:.8;pointer-events:none;
+    transition:width .3s var(--ease-out),height .3s var(--ease-out),opacity .3s var(--ease-out),box-shadow .3s var(--ease-out)}
+  .wb-btn.primary .vf1{top:-3px;left:-3px;border-top-width:2px;border-left-width:2px;border-top-left-radius:4px}
+  .wb-btn.primary .vf2{top:-3px;right:-3px;border-top-width:2px;border-right-width:2px;border-top-right-radius:4px}
+  .wb-btn.primary .vf3{bottom:-3px;left:-3px;border-bottom-width:2px;border-left-width:2px;border-bottom-left-radius:4px}
+  .wb-btn.primary .vf4{bottom:-3px;right:-3px;border-bottom-width:2px;border-right-width:2px;border-bottom-right-radius:4px}
+  @media(hover:hover) and (pointer:fine){
+    .wb-btn.primary:hover .vf{width:15px;height:15px;opacity:1;box-shadow:0 0 10px rgba(123,211,192,.55)}
+  }
+  /* ③ 选中节点：对角取景标记（电影画幅构图语义，纯 CSS 零 JS 改动） */
+  .wb-node.sel::before,.wb-node.sel::after{content:"";position:absolute;width:12px;height:12px;pointer-events:none;
+    transition:width .25s var(--ease-out),height .25s var(--ease-out)}
+  .wb-node.sel::before{top:-5px;left:-5px;border-top:2px solid var(--accent);border-left:2px solid var(--accent);border-top-left-radius:4px}
+  .wb-node.sel::after{bottom:-5px;right:-5px;border-bottom:2px solid var(--accent);border-right:2px solid var(--accent);border-bottom-right-radius:4px}
+  /* ④ 输入聚焦：品牌色外发光（源 galaxy Inputs 聚焦光晕思路，改色适配） */
+  textarea:focus,.api-field input:focus,.api-field textarea:focus,.ctl select:focus{
+    box-shadow:0 0 0 3px var(--accent-soft),0 0 22px -4px rgba(255,77,109,.4);
+  }
+  /* ⑤ AI 等待环：SVG 渐变弧线（源 Lissy2019_fat-wasp-24 dash loader，蓝青→薄荷粉） */
+  .ai-loader{display:none;width:22px;height:22px;flex:none}
+  .ai-loader.on{display:block}
+  .ai-loader circle{transform-origin:center;animation:aiRing .9s linear infinite}
+  @keyframes aiRing{to{transform:rotate(360deg)}}
+
   @media (prefers-reduced-motion: reduce){
     *{transition:none!important;animation:none!important}
     html{scroll-behavior:auto}
@@ -606,7 +653,7 @@
     <p><b>免费先用。</b>默认走本地规则解析，不花钱、不联网；接入你自己的 DeepSeek Key 后可无限次让 AI 重写分镜。工具只产出提示词，出图/出视频的额度由你在即梦、可灵那边决定。</p>
   </section>
 
-  <footer class="footer"><b>秒视 AI · 漫剧分镜生成器</b>（产品演示 v4，纯前端示例数据，不联网）</footer>
+  <footer class="footer"><b>秒视 AI · 漫剧分镜生成器</b>（产品演示 v4，纯前端示例数据，不联网）· 界面动画组件来自 <b>Uiverse.io</b> 开源社区（MIT）</footer>
   </div><!-- /.wrap -->
 </div><!-- /#landingView -->
 
@@ -711,6 +758,7 @@
           <textarea id="apiPrompt" placeholder="在此编写发给 AI 的系统提示词…"></textarea>
         </div>
         <div class="api-actions">
+          <svg class="ai-loader" id="aiLoader" viewBox="0 0 100 100" aria-hidden="true"><defs><linearGradient id="aiLoaderGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7BD3C0"/><stop offset="1" stop-color="#FF4D6D"/></linearGradient></defs><circle cx="50" cy="50" r="38" fill="none" stroke="url(#aiLoaderGrad)" stroke-width="11" stroke-linecap="round" stroke-dasharray="76 240"/></svg>
           <button class="api-btn ai" id="aiGen" disabled title="填写 Token 后启用">调用 AI 生成分镜</button>
           <button class="api-btn local" id="resetPrompt" style="min-height:40px;font-size:13px">恢复默认提示词</button>
           <button class="api-btn local" id="contBtn" style="min-height:40px;font-size:13px;display:none">续写剩余分镜</button>
@@ -1633,7 +1681,7 @@ function renderCanvas(){
       +'<button type="button" data-row="img" class="'+(box._wb._rows==='script+image'?'on':'')+'">脚本+出图提示词</button>'
       +'<button type="button" data-row="all" class="'+(box._wb._rows==='all'?'on':'')+'">全展开</button>'
       +'</div>'
-      +'<button type="button" class="wb-btn primary" data-wb-export>复制全片提示词</button>'
+      +'<button type="button" class="wb-btn primary" data-wb-export><span class="vf vf1"></span><span class="vf vf2"></span><span class="vf vf3"></span><span class="vf vf4"></span>复制全片提示词</button>'
       +'<span class="wb-tip">脚本 → 出图提示词 → 视频提示词，逐镜复制去即梦/可灵</span>'
     +'</div>'
     +'<div class="wb-stage" data-wb-stage>'
@@ -2248,11 +2296,12 @@ function aiGenerate(){
   if(!prompt){ apiStatus('镜头脚本提示词为空，请填写或使用默认模板','err'); return; }
   var btn=$('aiGen'), statusEl=$('apiStatus');
   btn.disabled=true; btn.textContent='AI 生成中…';
+  var ld=$('aiLoader'); if(ld) ld.classList.add('on');
   /* 分段叙事进度：让用户在 15-40 秒等待期知道"它正在干活且干得很细" */
   var AI_STAGES=['正在解析人物与场景…','正在剔水、压缩信息…','正在切分镜头节奏…','正在校对风格一致性…'];
   var stIdx=0; statusEl.textContent='正在调用 '+model+'：'+AI_STAGES[0]+'（约 15–40 秒）';
   var _stTimer=setInterval(function(){ stIdx=(stIdx+1)%AI_STAGES.length; statusEl.textContent='正在调用 '+model+'：'+AI_STAGES[stIdx]+'（约 15–40 秒）'; },4000);
-  function _stClear(){ clearInterval(_stTimer); }
+  function _stClear(){ clearInterval(_stTimer); var l=$('aiLoader'); if(l) l.classList.remove('on'); }
   var body={
     model:model,
     messages:[
@@ -2341,6 +2390,7 @@ function aiGenerate(){
   $('contBtn').onclick=function(){
     var ctx=state._apiCtx; if(!ctx){ toast('请先点「调用 AI 生成分镜」'); return; }
     var btn=$('aiGen'); btn.disabled=true; btn.textContent='续写中…';
+    var ld2=$('aiLoader'); if(ld2) ld2.classList.add('on');
     apiStatus('正在续写剩余分镜…');
     var lastNo=state.shots.length;
     var head={genre:state.genre,style:(state.st&&state.st.style)||'',grade:(state.st&&state.st.grade)||'',ratio:state.ratio,roles:state.roles,scenes:state.scenes};
@@ -2367,7 +2417,7 @@ function aiGenerate(){
       if(ch.finish_reason!=='length') $('contBtn').style.display='none';
       toast('续写了 '+more.length+' 镜 → 共 '+state.shots.length+' 镜');
     }).catch(function(e){ apiStatus('续写失败：'+e.message,'err'); })
-    .finally(function(){ btn.disabled=false; btn.textContent='调用 AI 生成分镜'; });
+    .finally(function(){ btn.disabled=false; btn.textContent='调用 AI 生成分镜'; var l3=$('aiLoader'); if(l3) l3.classList.remove('on'); });
   };
 })();
 
