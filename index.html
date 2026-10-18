@@ -679,9 +679,12 @@
           <option value="科幻赛博">科幻赛博</option>
         </select></div>
         <div class="ctl"><label for="count">镜头数</label><select id="count">
+          <option value="4">4 镜（约 25s）</option>
           <option value="5">5 镜（约 30s）</option>
+          <option value="6">6 镜（约 40s）</option>
           <option value="8" selected>8 镜（约 50s）</option>
           <option value="10">10 镜（约 65s）</option>
+          <option value="12">12 镜（约 80s）</option>
         </select></div>
         <div class="ctl"><label for="ratio">画幅</label><select id="ratio">
           <option value="9:16">竖屏 9:16 · 抖音/快手</option>
@@ -881,12 +884,6 @@ function detectGenre(text){
   for(var g in GENRE_KEYS){ var ks=GENRE_KEYS[g]; for(var i=0;i<ks.length;i++) if(text.indexOf(ks[i])>-1) return g; }
   return '都市职场';
 }
-function chunk(arr, n){
-  var out=[]; if(!arr.length) return out;
-  var size=Math.max(1,Math.ceil(arr.length/n));
-  for(var i=0;i<arr.length;i+=size) out.push(arr.slice(i,i+size));
-  return out;
-}
 function quoteOf(t){
   var m=t.match(/[「“"『]([^」”"』]+)[」”"』]/);
   if(m) return m[1];
@@ -996,15 +993,53 @@ function isWater(s){
   return false;
 }
 /* ===== 高光句式族 + 维度打分 + 分桶选点（DeepSeek B1b 优化） ===== */
-var HL_ORDER=['reversal','conflict','cost','wish','punch'];
+/* ===== 看点（Highlights）算法 v6 =====
+   设计原则：
+   1) 正则宁多勿漏但每条都要能说出「覆盖哪类网文句式」，避免纯噪声词（如单个"猛地"）误报；
+   2) 新增 suspense 维度，因为网文真正的钩子常常不是"反转"而是"没说完/有东西/不对劲"；
+   3) 分桶按叙事弧线（开场钩→冲突→收尾钩），保证 4 个看点覆盖全篇而不是挤在中段；
+   4) 标签优先级：强维度 > 情绪高光 > 兜底核心情节，避免"情绪高光"抢走反转/冲突的标签。
+*/
+var HL_ORDER=['reversal','conflict','cost','wish','punch','suspense'];
 var HL_PAT={
-  reversal:/原来[^，。]{0,12}(竟|却)|可[^，。]{0,10}却|没想到[^，。]{0,12}(居然|竟)|竟是|反手|偏偏/,
-  conflict:/[“「"][^”」"]{0,30}[？?！!]|凭什么|你敢|胡说|闭嘴|滚开|为什么/,
-  cost:/[一二三四五六七八九十百千0-9]+(年|天|次|遍|版|个月|分钟|分)|最后一次|只剩/,
-  wish:/只想|真想|要是|如果能|恨不得|哪怕|宁愿/,
-  punch:/不是[^，。]{0,8}而是|这就是|终究|从来|再也|原来/
+  /* 反转：原来…竟/却、可…却、没想到…居然、竟是、反手、偏偏、谁知、岂料、下一秒变脸 */
+  reversal:/原来[^，。]{0,12}(竟|却)|可[^，。]{0,10}却|没想到[^，。]{0,12}(居然|竟)|竟是|反手|偏偏|谁知[^，。]{0,10}(却|竟)|岂料|下一秒[^，。]{0,8}(变|翻|反)/,
+  /* 冲突：引号内问/叹、凭什么、你敢、胡说、闭嘴、滚开、为什么、你算什么东西、也配 */
+  conflict:/[“「"][^”」"]{0,30}[？?！!]|凭什么|你敢|胡说|闭嘴|滚开|为什么|你算什么东西|也配|轮不到你/,
+  /* 信息钩子：数字+时间量词、最后一次、只剩、倒计时、三天后、十年之约 */
+  cost:/[一二三四五六七八九十百千0-9]+(年|天|次|遍|版|个月|分钟|分|秒)|最后一次|只剩|倒计时|还有[^，。]{0,6}(天|小时|分钟)/,
+  /* 愿望：只想、真想、要是、如果能、恨不得、哪怕、宁愿、若能、多希望 */
+  wish:/只想|真想|要是|如果能|恨不得|哪怕|宁愿|若能|多希望|只求/,
+  /* 金句：不是…而是、这就是、终究、从来、再也、原来、只有…才 */
+  punch:/不是[^，。]{0,8}而是|这就是|终究|从来|再也|原来|只有[^，。]{0,10}才/,
+  /* 悬念：问句收尾、省略号、话没说完、门缝/黑影/脚步声、不对劲、似乎有人、背后 */
+  suspense:/[？?]\s*$|…{1,}|\.{3,}|话没说完|话音未落|门缝|黑影|脚步声|不对劲|似乎有人|背后[^，。]{0,6}(站|有|传来)|忽然[^，。]{0,6}(停|静|响)/
 };
-var HL_LBL={reversal:'反转悬念',conflict:'核心冲突',cost:'信息钩子',wish:'核心冲突',punch:'金句台词'};
+var HL_LBL={
+  reversal:'反转悬念',
+  conflict:'核心冲突',
+  cost:'信息钩子',
+  wish:'核心冲突',
+  punch:'金句台词',
+  suspense:'悬念钩子'
+};
+
+/* 动作/道具词表：用于 _hlLabel 兜底分支判定"情节推进"。
+   为什么单独建表而不塞进 HL_PAT：这些词不构成强维度（不该 +3 抢分），
+   只在没有任何强维度命中时，用来区分"这句在推进剧情"还是"只是普通叙述"。 */
+var HL_ACT_WORDS=['推','拉','抓','拽','摔','砸','踢','跑','冲','扑','躲','藏','递','塞','夺','抢','扔','捡','拔','挥','砍','刺','挡','拦','抱','背','扛','抬','翻','撬','锁','开门','关门','上车','下车','转身','回头','抬手','低头','点头','摇头','咬牙','握紧','攥','撕','烧','泼','砸碎','摔碎','掏出','摸出','抽出','按下','拨通','挂断','塞进','揣进','扔进','踢开','推开','拉开','扯下','摘下','戴上','穿上','脱下'];
+
+/* 判断是否命中动作/道具词：命中任一即 true。
+   为什么用 indexOf 循环而不是拼大正则：词表短、可读、避免正则转义出错。 */
+function _hlHasAct(raw){
+  for(var i=0;i<HL_ACT_WORDS.length;i++){
+    if(raw.indexOf(HL_ACT_WORDS[i])>-1) return true;
+  }
+  return false;
+}
+
+/* 打分：维度命中权重最高（+3），情绪/场景/长度是辅助分。
+   为什么 suspense 与 reversal 同权：网文里"没说完"和"反转"对读者是同等级的钩子。 */
 function _hlScore(s){
   var raw=String(s==null?'':s), sc=0, dims={}, emo=false;
   HL_ORDER.forEach(function(k){dims[k]=0;});
@@ -1019,42 +1054,305 @@ function _hlScore(s){
   HL_ORDER.forEach(function(k){
     if(HL_PAT[k].test(raw)){ sc+=3; dims[k]+=1; }
   });
+  /* 短句金句补分：≤14 字且含对比/断言词，网文里这类短句最容易被截图传播 */
   var len=raw.replace(/[^一-龥]/g,'').length;
   if(len>0&&len<=14&&!dims.punch&&/不是|而是|就是|终究|从来|再也|只有|原来/.test(raw)){
     sc+=3; dims.punch+=1;
   }
+  /* 情绪高光补分：有情绪词但没有任何强维度命中时，给 1 分让它在桶内有机会胜出，
+     但不给到 3 分，避免"她哭了"这种普通情绪句抢走反转/冲突标签 */
+  if(emo){
+    var dimSum=0;
+    HL_ORDER.forEach(function(k){ dimSum+=dims[k]; });
+    if(dimSum===0) sc+=1;
+  }
   return {sc:sc, dims:dims, emo:emo};
 }
-function _hlLabel(x){
-  for(var i=0;i<HL_ORDER.length;i++){var k=HL_ORDER[i]; if(x.dims[k]>0) return HL_LBL[k];}
-  if(isTurn(x.s)) return '反转悬念';
-  if(x.emo) return '情绪高光';
+
+/* 标签计算：入参 info 必须是该句 _hlScore 的返回对象，保证打分与标签同源。
+   优先级：强维度按 HL_ORDER 取第一个命中 → 兜底细分（情绪/场景/动作/核心情节）。
+   为什么兜底要细分：原来一律"核心情节"会让列表里出现多个同名标签，
+   下游相邻去重无从下手，也无法让用户一眼看出这句属于哪类看点。 */
+function _hlLabel(s, info){
+  var raw=String(s==null?'':s);
+  var dims=(info&&info.dims)||{};
+  var emo=!!(info&&info.emo);
+  var i,k;
+  /* 强维度命中：按 HL_ORDER 顺序取第一个，保证同一句多次调用结果稳定 */
+  for(i=0;i<HL_ORDER.length;i++){
+    k=HL_ORDER[i];
+    if(dims[k]) return HL_LBL[k];
+  }
+  /* 兜底 1：情绪词命中 → 情绪高光 */
+  if(emo) return '情绪高光';
+  /* 兜底 2：场景词命中 → 场景氛围 */
+  for(i=0;i<SCENES.length;i++){
+    if(SCENES[i].k.some(function(kk){return raw.indexOf(kk)>-1;})) return '场景氛围';
+  }
+  /* 兜底 3：动作/道具词命中 → 情节推进 */
+  if(_hlHasAct(raw)) return '情节推进';
+  /* 兜底 4：其余 → 核心情节 */
   return '核心情节';
 }
-function extractHighlights(kept){
-  var list=(kept||[]).map(function(s,i){
-    var r=_hlScore(s);
-    return {s:s, i:i, sc:r.sc, dims:r.dims, emo:r.emo};
-  });
-  if(!list.length) return [{s:'（内容过短，建议补充）', lbl:'核心情节'}];
-  var MAX=4, picks=[], used={};
-  function take(x){ if(x&&!used[x.i]){ used[x.i]=1; picks.push(x); } }
-  var n=list.length;
-  if(n>=3){
-    var b1=Math.floor(n/3), b2=Math.floor(2*n/3);
-    [[0,b1],[b1,b2],[b2,n]].forEach(function(rg){
-      var seg=list.slice(rg[0],rg[1]).sort(function(a,b){return b.sc-a.sc||a.i-b.i;});
-      if(seg.length&&seg[0].sc>=2) take(seg[0]);
-    });
+
+/* 桶内取句：按 sc 降序，同分保持原顺序（稳定），取前 n 条。
+   为什么不用 sort 直接比较对象：ES5 下 sort 稳定性不保证，这里手动插入排序保证稳定。 */
+function _hlPickBucket(arr, n){
+  var list=arr.slice();
+  var i,j,cur;
+  for(i=1;i<list.length;i++){
+    cur=list[i];
+    j=i-1;
+    while(j>=0&&list[j].sc<cur.sc){ list[j+1]=list[j]; j--; }
+    list[j+1]=cur;
   }
-  var rest=list.slice().sort(function(a,b){return b.sc-a.sc||a.i-b.i;});
-  for(var i=0;i<rest.length;i++){ if(picks.length>=MAX) break; if(rest[i].sc>=2) take(rest[i]); }
-  for(var j=0;j<rest.length;j++){ if(picks.length>=MAX) break; take(rest[j]); }
-  picks.sort(function(a,b){return a.i-b.i;});
-  return picks.map(function(x){ return {s:x.s, lbl:_hlLabel(x)}; });
+  return list.slice(0,n);
 }
 
-/* ---------- 主生成 ---------- */
+/* 看点提取主函数。
+   三段分桶（前 1/3 开场钩、中 1/3 冲突、后 1/3 收尾钩）是 T4 的核心：
+   纯按分数取前 4 会让看点全挤在中段高潮，开头留不住人、结尾没有钩子。
+   分桶后每段各取 1 条，剩余名额再全局补位，兼顾结构与强度。 */
+function extractHighlights(sents, maxN){
+  var n=maxN||4;
+  var cands=[], i, s, info;
+  if(!sents||!sents.length) return [{s:'（内容过短，建议补充）', lbl:'核心情节'}];
+  for(i=0;i<sents.length;i++){
+    s=sents[i];
+    if(!s) continue;
+    info=_hlScore(s);
+    /* 只收有分的句子：0 分句是纯叙述，进候选只会稀释看点 */
+    if(info.sc>0) cands.push({s:s, sc:info.sc, info:info, i:i});
+  }
+  /* 全 0 分句兜底：不返回空数组（下游看点列表会空），用全部句子按序补候选 */
+  if(!cands.length){
+    for(i=0;i<sents.length;i++){
+      if(sents[i]) cands.push({s:String(sents[i]), sc:0, info:_hlScore(sents[i]), i:i});
+    }
+  }
+  if(!cands.length) return [{s:'（内容过短，建议补充）', lbl:'核心情节'}];
+
+  var total=cands.length;
+  var seg1=[], seg2=[], seg3=[];
+  var b1=Math.floor(total/3), b2=Math.floor(total*2/3);
+  for(i=0;i<total;i++){
+    if(i<b1) seg1.push(cands[i]);
+    else if(i<b2) seg2.push(cands[i]);
+    else seg3.push(cands[i]);
+  }
+  /* 段为空时（句子太少）退化为整段，避免某段取不到句导致名额浪费 */
+  if(!seg1.length) seg1=cands.slice();
+  if(!seg2.length) seg2=cands.slice();
+  if(!seg3.length) seg3=cands.slice();
+
+  var picks=[];
+  var used={};
+  function take(list){
+    var got=_hlPickBucket(list,1);
+    if(got.length&&!used[got[0].i]){ used[got[0].i]=1; picks.push(got[0]); return true; }
+    return false;
+  }
+  take(seg1); take(seg2); take(seg3);
+
+  /* 全局补位：按 sc 降序从全部候选里补，跳过已选，直到凑满 n 条 */
+  var rest=cands.slice();
+  var r,j,cur;
+  for(r=1;r<rest.length;r++){
+    cur=rest[r];
+    j=r-1;
+    while(j>=0&&rest[j].sc<cur.sc){ rest[j+1]=rest[j]; j--; }
+    rest[j+1]=cur;
+  }
+  for(i=0;i<rest.length&&picks.length<n;i++){
+    if(!used[rest[i].i]){ used[rest[i].i]=1; picks.push(rest[i]); }
+  }
+
+  /* 按原文位置升序：看点列表要跟剧情顺序一致，否则用户读起来跳来跳去 */
+  picks.sort(function(a,b){ return a.i-b.i; });
+
+  /* 统一算 lbl：info 来自该句 _hlScore 结果，保证打分与标签同源 */
+  for(i=0;i<picks.length;i++){
+    picks[i].lbl=_hlLabel(picks[i].s, picks[i].info);
+  }
+
+  /* 相邻同 lbl 后处理：单趟扫描，发现与上一条同标签，就从落选候选里
+     找 lbl 不同且 sc 不低于被换者的替换；找不到就保留，不循环。
+     为什么只做单趟：多趟替换会打乱分桶结构，且收益递减，单趟已能消除大部分重复标签。 */
+  var pool=[];
+  for(i=0;i<cands.length;i++){
+    if(!used[cands[i].i]){
+      cands[i].lbl=_hlLabel(cands[i].s, cands[i].info);
+      pool.push(cands[i]);
+    }
+  }
+  for(j=1;j<picks.length;j++){
+    if(picks[j].lbl!==picks[j-1].lbl) continue;
+    var victim=picks[j];
+    var best=-1;
+    for(i=0;i<pool.length;i++){
+      if(pool[i].lbl!==victim.lbl&&pool[i].sc>=victim.sc){ best=i; break; }
+    }
+    if(best>-1){
+      used[victim.i]=0;
+      used[pool[best].i]=1;
+      picks[j]=pool[best];
+      pool.splice(best,1);
+    }
+  }
+
+  /* 契约：返回 [{s, lbl}] 对象数组，下游 renderSummary/buildExportText/buildShots 依赖此结构 */
+  return picks.map(function(x){ return {s:x.s, lbl:x.lbl}; });
+}
+
+/* ============================================================
+ * T1 · buildShots 节奏与景别算法升级
+ * 新增辅助：smartChunk / pickCam / allocDur / padGroups
+ * 原则：只改内部算法，返回结构与字段名与 v5 完全一致（数据契约不变）
+ * ============================================================ */
+
+/* 高能句保护分块：
+ * 为什么不用原 chunk：原 chunk 纯按 ceil(len/n) 均分，会把一句高能台词
+ * 和它的上下文切到两镜里，导致"钩子被稀释"。这里先按目标均分算出边界，
+ * 再在边界附近（±1 句）寻找"低分句"作为切点，让高能句尽量落在同一组内。
+ * 返回：二维数组，长度可能 < n（由 padGroups 补齐），不会返回空组。 */
+function smartChunk(arr, n){
+  var out=[];
+  if(!arr||!arr.length||n<=0) return out;
+  var len=arr.length;
+  if(n>=len){
+    /* 句数少于镜数：一句一镜，剩余由 padGroups 补占位 */
+    for(var a=0;a<len;a++) out.push([arr[a]]);
+    return out;
+  }
+  /* 预计算每句看点分，作为"切点避让"依据；_hlScore 同作用域可直接调 */
+  var scores=[];
+  for(var s=0;s<len;s++){
+    var sc=0;
+    try{ sc=_hlScore(arr[s]).sc||0; }catch(e){ sc=0; }
+    scores.push(sc);
+  }
+  var base=len/n;
+  var cuts=[0];
+  for(var k=1;k<n;k++){
+    var ideal=Math.round(k*base);
+    /* 在 ideal 附近 ±1 找分数最低的句子作为切点，避免切断高能句 */
+    var best=ideal, bestSc=scores[ideal]!==undefined?scores[ideal]:99;
+    var cands=[ideal-1,ideal+1];
+    for(var c=0;c<cands.length;c++){
+      var p=cands[c];
+      if(p<=cuts[cuts.length-1]||p>=len) continue;
+      var ps=scores[p]!==undefined?scores[p]:99;
+      if(ps<bestSc){ bestSc=ps; best=p; }
+    }
+    /* 保证切点严格递增且不与上一刀重合 */
+    if(best<=cuts[cuts.length-1]) best=cuts[cuts.length-1]+1;
+    if(best>=len) best=len-1;
+    cuts.push(best);
+  }
+  cuts.push(len);
+  for(var g=0;g<cuts.length-1;g++){
+    var seg=arr.slice(cuts[g],cuts[g+1]);
+    if(seg.length) out.push(seg);
+  }
+  return out;
+}
+
+/* 补位：把组数补到 count。
+ * 为什么重写：原 while 用 last.slice(-1)，当 last 为空数组时会 push 空数组，
+ * 下游 join('') 得到空串再走占位分支，逻辑绕且易踩 truthy 陷阱。
+ * 这里显式：空组直接填占位句；组数不足时复制末组最后一句（非空）或占位句。 */
+function padGroups(groups, count){
+  var PLACEHOLDER='（此处可补充本镜剧情，或留白由画面承载）';
+  var out=[];
+  var i;
+  for(i=0;i<groups.length&&i<count;i++){
+    var g=groups[i];
+    if(!g||!g.length) out.push([PLACEHOLDER]);
+    else out.push(g);
+  }
+  /* 组数不足：优先复制末组最后一句（保持剧情连贯），末组为空则用占位句 */
+  while(out.length<count){
+    var last=out[out.length-1];
+    if(last&&last.length){
+      out.push([last[last.length-1]]);
+    }else{
+      out.push([PLACEHOLDER]);
+    }
+  }
+  return out.slice(0,count);
+}
+
+/* 景别选择：从候选池排除"与上一镜景别相同"的项后选取。
+ * 为什么不用原"重试一次"写法：原写法只重试一次，池里若只有 2 项且都撞车
+ * 仍会重复；这里先过滤掉与 prevCam 同景别的候选，池空才允许重复。
+ * 返回 {cam, idx}，idx 为该 beat 下第几次出现（供 camIdx 使用）。 */
+function pickCam(beat, usedCount, prevCam){
+  var arr=BEAT_CAM[beat]||BEAT_CAM['冲突推进'];
+  var prevShot='';
+  if(prevCam){
+    prevShot=prevCam.split('·')[0].trim();
+  }
+  /* 候选池：排除与上一镜同景别的项 */
+  var pool=[];
+  for(var i=0;i<arr.length;i++){
+    var shot=arr[i].split('·')[0].trim();
+    if(!prevShot||shot!==prevShot) pool.push(arr[i]);
+  }
+  /* 池空（该 beat 只有一种景别且撞车）→ 退回全池，允许重复 */
+  if(!pool.length) pool=arr;
+  /* 在池内按 usedCount 轮转，保证同 beat 多次出现时尽量不重复 */
+  var cam=pool[usedCount%pool.length];
+  return {cam:cam, idx:usedCount};
+}
+
+/* 时长分配：按 beat 差异化，并做总预算 ±20% 收敛。
+ * 为什么：原实现所有镜一刀切 dur，节奏平；开场钩子应慢（留悬念）、
+ * 冲突推进应快（信息密度）、情绪高潮稳住（让观众消化）、反转留钩慢（吊胃口）。
+ * 返回：与 count 等长的时长数组，每项钳制在 [3,10]，总和落在 count*dur 的 ±20% 内。 */
+function allocDur(count, dur, beats){
+  var base=dur||5;
+  var out=[];
+  var i;
+  for(i=0;i<count;i++){
+    var b=beats[i]||'冲突推进';
+    var d=base;
+    if(b==='开场钩子') d=base+1;
+    else if(b==='冲突推进') d=base-1;
+    else if(b==='情绪高潮') d=base;
+    else if(b==='情绪反转') d=base-1;
+    else if(b==='收束转折') d=base;
+    else if(b==='反转留钩') d=base+1;
+    /* 钳制到 [3,10]，避免极端 dur 把单镜拉爆 */
+    if(d<3) d=3;
+    if(d>10) d=10;
+    out.push(d);
+  }
+  /* 总预算收敛：目标 = count*base，允许 ±20% */
+  var target=count*base;
+  var lo=Math.round(target*0.8);
+  var hi=Math.round(target*1.2);
+  var sum=0;
+  for(i=0;i<out.length;i++) sum+=out[i];
+  /* 超上限：从最长的镜开始减，直到落回区间或全部到 3 */
+  var guard=0;
+  while(sum>hi&&guard<count*20){
+    var maxI=-1, maxV=-1;
+    for(i=0;i<out.length;i++){ if(out[i]>maxV&&out[i]>3){ maxV=out[i]; maxI=i; } }
+    if(maxI<0) break;
+    out[maxI]--; sum--; guard++;
+  }
+  /* 低于下限：从最短的镜开始加，直到落回区间或全部到 10 */
+  guard=0;
+  while(sum<lo&&guard<count*20){
+    var minI=-1, minV=99;
+    for(i=0;i<out.length;i++){ if(out[i]<minV&&out[i]<10){ minV=out[i]; minI=i; } }
+    if(minI<0) break;
+    out[minI]++; sum++; guard++;
+  }
+  return out;
+}
+
+/* 主函数：重写 buildShots，修掉补位空数组 / 景别重试笨 / 时长一刀切 / 分块不均 */
 function buildShots(story, styleName, count, dur, ratio){
   var sentences=splitSentences(story);
   /* 防冻结：纯空白/换行/标点内容分句为 0 时直接返回 null（否则下方补位 while 会死循环卡死标签页） */
@@ -1064,39 +1362,49 @@ function buildShots(story, styleName, count, dur, ratio){
   var sceneRow=firstHit(sentences,SCENES,null);
   if(!sceneRow) sceneRow=sceneByGenre(genre);
   var emo=firstHit(sentences,EMOTIONS,null);
-  // 剔水：剔除信息量低的水句，只保留有效剧情
+  /* 剔水：剔除信息量低的水句，只保留有效剧情 */
   var kept=[], removed=[];
   sentences.forEach(function(s){ if(isWater(s)) removed.push(s); else kept.push(s); });
   if(!kept.length) kept=sentences;
-  var groups=chunk(kept,count).slice(0,count);
-  while(groups.length<count){ var last=groups[groups.length-1]||kept; groups.push(last.slice(-1)); }
-  groups=groups.slice(0,count);
+  /* 分块：高能句保护 + 空组补位（替代原 chunk + 补位 while） */
+  var groups=smartChunk(kept,count);
+  groups=padGroups(groups,count);
   var highlights=extractHighlights(kept);
   var ratioMap={'9:16':'竖屏 9:16','16:9':'横屏 16:9','1:1':'方形 1:1'};
   var ratioText=ratioMap[ratio]||'竖屏 9:16';
   var roles=extractRoles(story);
   var scenes=extractScenes(sentences);
+  /* 先算 beat 序列，供时长分配与景别选择共用 */
+  var beats=[];
+  var i;
+  for(i=0;i<count;i++){
+    var txt0=(groups[i]||[]).join('');
+    beats.push(beatFor(i,count,isTurn(txt0)));
+  }
+  var durs=allocDur(count,dur,beats);
   var camCnt={};
   var prevCam='';
   var shots=[];
-  for(var i=0;i<count;i++){
+  for(i=0;i<count;i++){
     var txt=(groups[i]||[]).join('');
     if(!txt) txt='（此处可补充本镜剧情，或留白由画面承载）';
-    var beat=beatFor(i,count,isTurn(txt));
-    camCnt[beat]=(camCnt[beat]||0);
-    var cam=camFor(beat,camCnt[beat],prevCam);
-    if(cam===prevCam){ camCnt[beat]++; cam=camFor(beat,camCnt[beat],prevCam); }
-    camCnt[beat]++; prevCam=cam;
+    var beat=beats[i];
+    var used=camCnt[beat]||0;
+    var picked=pickCam(beat,used,prevCam);
+    var cam=picked.cam;
+    /* 极端情况：池内仍与上一镜同景别（该 beat 只有一种景别）→ 允许重复，但计数照常 */
+    camCnt[beat]=used+1;
+    prevCam=cam;
     var line=quoteOf(txt);
     var cleanLine=line.replace(/[。！？；，,、\s]+$/,'');
     var variants=[line];
     if(cleanLine.length>16) variants.push(cutLine(cleanLine,16));
     if(OPENERS[genre]) variants.push(OPENERS[genre]);
     var shot={
-      no:i+1, beat:beat, cam:cam, camIdx:(camCnt[beat]-1),
+      no:i+1, beat:beat, cam:cam, camIdx:used,
       summary:txt, line:line, lines:variants, lineIdx:0,
       subtitle:cutLine(cleanLine,26),
-      dur:dur, scene:sceneRow?sceneRow.scene:'（按剧情自设）',
+      dur:durs[i], scene:sceneRow?sceneRow.scene:'（按剧情自设）',
       light:sceneRow?sceneRow.light:'', env:sceneRow?sceneRow.env:'风动发梢、光影自然流转',
       mood:emo?emo.mood:'自然情绪',
       face:emo?emo.face:'人物表演自然、真实', genre:genre, st:st, ratioText:ratioText, ratio:ratio
@@ -2140,55 +2448,69 @@ $('story').addEventListener('keydown',function(e){ if(e.key==='Enter'&&(e.metaKe
    ============================================================ */
 var API_LS='sugai_api_v1';
 var DEFAULT_API_PROMPT = [
-'你是资深漫剧分镜导演与分镜师，服务竖屏 9:16 漫剧（红果/抖音），用户是 30 分钟内要出片的小团队。任务：把用户给的小说/剧情片段，拆成可直接开拍、可直接喂文生图与图生视频的分镜脚本。',
+'你是资深漫剧分镜导演，服务竖屏 9:16 漫剧（红果/抖音），用户是 30 分钟内要出片的小团队。任务：把小说片段拆成可直接开拍、可直接喂文生图与图生视频的分镜。',
 '',
 '【硬规则】',
-'- 只输出一个 JSON。不要 markdown 代码块标记，不要解释，不要前言后语，不要注释。',
-'- 不虚构原文没有的关键剧情与人物关系；信息不足时用最保守写法，不脑补。',
-'- 禁一切虚词与套话：有画面感、氛围感拉满、电影感、唯美、史诗感、令人震撼、情绪饱满、极具张力、美轮美奂。这些词一律不准出现在 summary/face/mood 里。',
+'- 只输出一个 JSON，不要代码块标记、不要解释、不要注释。',
+'- 不虚构原文没有的关键剧情与人物关系，信息不足用最保守写法。',
+'- 禁虚词套话：有画面感、氛围感、电影感、唯美、史诗感、令人震撼、情绪饱满、极具张力、美轮美奂。',
 '',
 '【处理步骤】',
-'1. 剔水：删掉无画面、无信息、无冲突的套话与连接句（寒暄、心理复述、重复强调），只留推动剧情、暴露关系的动作与台词。',
-'2. 提炼 2~4 个核心看点，一句话一个，落在反转/冲突/信息钩子/金句台词上。',
-'3. 识别主要角色（主角优先）与场景；角色给 label 与 role（主角/配角）。',
-'4. 分镜：按画面变化与剧情推进自然切，不硬切；每镜 3~8 秒；镜数跟随剧情，不注水、不赶。',
+'1 剔水：删寒暄、心理复述、重复强调，只留推动剧情与暴露关系的动作台词。',
+'2 提炼 2~4 个看点，落在反转/冲突/信息钩子/金句台词。',
+'3 识别主要角色（label+role）与场景。',
+'4 分镜：按画面变化与剧情推进自然切，每镜 3~8 秒，不注水不赶。',
 '',
-'【每镜必写 7 项，缺一不可】',
-'1. 主体：谁 + 具体动作 + 关键道具（手里拿什么、身上穿什么、背景有什么）。summary ≥45 字且必须含「材质/表面状态 + 一个环境层次（前中后景之一）」。',
-'2. 景别：大远景/远景/全景/中景/中近景/近景/特写/大特写，选一个。',
-'3. 机位高度：平视/俯拍/仰拍/鸟瞰/地面贴拍，选一个。',
-'4. 运镜方式与速度：固定/推/拉/摇/移/跟随/升降/手持微晃，配速度（极慢/慢/中/快/极快），例「缓慢推镜约 8cm/s」。',
-'5. 光影方向与软硬：光从哪来（侧逆/顺光/顶光/底光/窗光/屏幕光）+ 硬光/柔光 + 明暗比例，例「左侧冷柜硬光，面部半明半暗」。',
-'6. 色调：冷暖倾向 + 饱和度 + 对比，例「冷青灰、低饱和、高对比」。',
-'7. 情绪：具体情绪词（压抑/警觉/松动/挑衅/崩溃前兆），不写「很感动」。',
-'每镜输出前自检三宽度：景别是否明确、运镜幅度是否写明速度、信息密度是否含≥2 个具体物象；缺任一则重写该镜。',
+'【每镜必写 7 项】',
+'1 主体：谁+具体动作+关键道具（手里拿什么、身上穿什么、背景有什么）。summary ≥45 字，含材质/表面状态+一个环境层次（前中后景之一）。',
+'2 景别：大远景/远景/全景/中景/中近景/近景/特写/大特写，选一。',
+'3 机位高度：平视/俯拍/仰拍/鸟瞰/地面贴拍，选一。',
+'4 运镜与速度：固定/推/拉/摇/移/跟随/升降/手持微晃+速度（极慢/慢/中/快/极快），例「缓慢推镜约 8cm/s」。',
+'5 光影：光从哪来（侧逆/顺光/顶光/底光/窗光/屏幕光）+硬光/柔光+明暗比例。',
+'6 色调：冷暖+饱和度+对比。',
+'7 情绪：具体情绪词（压抑/警觉/松动/挑衅/崩溃前兆），不写「很感动」。',
 '',
 '【表演单列】face 写眼神落点、嘴角/下颌、呼吸/肩背、手指小动作，四选二以上，要能拍到。',
 '',
 '【对白克制】',
-'- 能靠画面与动作讲清的，不写台词，line 写 "" 或旁白。',
-'- 保留的台词必须承担钩子、反转、金句功能；单镜 ≤14 字；口语、可念、带信息。',
-'- 相邻两镜不要都是台词；台词镜之间至少隔一个纯画面镜。',
-'- 相邻台词镜的 line 不得共享 ≥3 字连续子串；若共享，后一镜改为零台词（画面替代）。',
-'- line 允许结尾 … 表示未完待续，开头 （停） 表示前置停顿供配音断句。',
-'输出前逐镜自检：① line 超 14 字 → 拆成两镜或砍到 ≤14；② 连续两镜都有台词 → 后一镜 line 改 ""；③ 末镜 line 必须含未答问题或未说完的话（省略号、反问、半句），不允许结论式陈述。任一不满足则重写该镜。',
+'- 能靠画面讲清的不写台词，line 写 ""。',
+'- 保留台词须承担钩子/反转/金句功能；单镜 ≤14 字；口语可念。',
+'- 相邻两镜不得都是台词，台词镜之间至少隔一个纯画面镜。',
+'- 相邻台词不得共享 ≥3 字连续子串，共享则后一镜改零台词。',
+'- line 可用结尾 … 表未完，开头 （停） 表前置停顿供配音断句。',
+'- 末镜是唯一例外：末镜 line 不允许为空字符串 ""，必须用台词留钩——省略号（……）、反问或半句台词，禁止结论式陈述；只有中间镜才允许 line:""。',
+'- 反面示例①：「我早就知道你不是我认识的那个人了」——19 字超限且信息平铺，应砍为「你不是他。」',
+'- 反面示例②：末镜写「她终于明白，一切都结束了。」——结论式陈述，无钩，应改为「她终于明白……」。',
 '',
-'【信息与张力】',
-'- 每镜的信息量或张力要比上一镜多一点（新信息/新威胁/新关系/新道具/新表情），不原地打转。',
-'- 前一镜留半句或动作未完，后一镜接住或反打；最后一镜必须留钩（未答的问题、未露的脸、未落下的手、未说完的话）。',
+'【景别跨度规则】同一场景内必须至少出现一次景别跨度（特写↔远景/大远景），不得全片停在中景；相邻镜不得重复同一「景别+机位高度」组合。',
 '',
-'【机位与节拍】',
-'- beat 取：开场钩子 / 冲突推进 / 情绪高潮 / 情绪反转 / 收束转折 / 反转留钩。首镜「开场钩子」，末镜「反转留钩」。',
-'- 相邻镜头不要重复同一「景别+机位高度」组合；同场景内至少换一次景别跨度。',
+'【道具连续性】关键道具（孕检单、钥匙、手机、刀、照片等）首次出现即锁定状态（揉皱/带血/屏幕亮着/缺一角），后续提及必须保持同一状态；纸不会自己变平整，血不会自己消失。',
 '',
-'【输出 JSON 结构，字段名不得改、不得嵌套】',
-'{"genre":"题材","style":"画风","grade":"影调质感","ratio":"9:16","dur":5,"roles":[{"label":"角色名","role":"主角/配角"}],"scenes":["场景名"],"highlights":[{"lbl":"看点类型","s":"一句话"}],"shots":[{"no":1,"beat":"节拍","cam":"景别 · 机位高度 · 运镜方式与速度","summary":"主体+动作+关键道具+环境层次，可直接做文生图主体","line":"台词或空字符串","scene":"场景","light":"光从哪来+软硬+明暗+色调","env":"环境动态（风/雨/烟/人群/光斑/水面）","mood":"具体情绪","face":"眼神+嘴角+呼吸+手部小动作","dur":5}]}',
+'【信息与张力】每镜信息量或张力比上一镜多一点（新信息/新威胁/新关系/新道具/新表情），不原地打转。前一镜留半句或动作未完，后一镜接住或反打。',
 '',
-'【few-shot 示例镜，照此密度写每一镜】',
-'{"no":1,"beat":"开场钩子","cam":"近景 · 平视 · 缓慢推镜约8cm/s","summary":"林晚站在24小时便利店的冷柜前，右手攥着一张揉皱的孕检单，指节发白，指尖把纸边压出折痕；冷柜蓝白硬光从左侧打亮她半张脸，右脸沉在暗部；玻璃门外雨幕连片，一辆车灯扫过，光从她颧骨掠过。","line":"……两条杠。","scene":"24小时便利店","light":"左侧冷柜冷白硬光，面部半明半暗，背景压暗；冷青灰、低饱和、高对比","env":"门外雨斜落，车灯扫掠，冷柜低频嗡鸣","mood":"压着的慌，悬而未决","face":"眼睛向下盯单子、不眨，下唇轻颤，肩背绷直，拇指反复搓纸边","dur":5}',
+'【机位与节拍】beat 取：开场钩子/冲突推进/情绪高潮/情绪反转/收束转折/反转留钩。首镜「开场钩子」，末镜「反转留钩」。',
 '',
-'现在按上述结构与密度输出 JSON。'
-].join('\n');
+'【输出前逐镜自检，任一不满足则重写该镜】',
+'① summary 是否含 ≥2 个具体物象+材质状态+环境层次？',
+'② 景别、机位、运镜速度是否都写明？',
+'③ line 是否 ≤14 字？连续两镜是否都有台词？',
+'④ 同场景是否有一次景别跨度？',
+'⑤ 关键道具状态是否前后一致？',
+'⑥ 末镜 line 是否非空，且为省略号/反问/半句台词（非结论式陈述）？',
+'',
+'【输出 JSON，字段名不得改、不得嵌套】',
+'{"genre":"题材","style":"画风","grade":"影调质感","ratio":"9:16","dur":5,"roles":[{"label":"角色名","role":"主角/配角"}],"scenes":["场景名"],"highlights":[{"lbl":"看点类型","s":"一句话"}],"shots":[{"no":1,"beat":"节拍","cam":"景别 · 机位高度 · 运镜方式与速度","summary":"主体+动作+关键道具+环境层次","line":"台词或空字符串","scene":"场景","light":"光从哪来+软硬+明暗+色调","env":"环境动态","mood":"具体情绪","face":"眼神+嘴角+呼吸+手部小动作","dur":5}]}',
+'',
+'【few-shot 1｜台词镜】',
+'{"no":1,"beat":"开场钩子","cam":"近景 · 平视 · 缓慢推镜约8cm/s","summary":"林晚站在24小时便利店冷柜前，右手攥着一张揉皱的孕检单，指节发白，指尖把纸边压出折痕；冷柜蓝白硬光从左侧打亮她半张脸，右脸沉在暗部；玻璃门外雨幕连片，一辆车灯扫过，光从她颧骨掠过。","line":"……两条杠。","scene":"24小时便利店","light":"左侧冷柜冷白硬光，面部半明半暗，背景压暗；冷青灰、低饱和、高对比","env":"门外雨斜落，车灯扫掠，冷柜低频嗡鸣","mood":"压着的慌，悬而未决","face":"眼睛向下盯单子不眨，下唇轻颤，肩背绷直，拇指反复搓纸边","dur":5}',
+'',
+'【few-shot 2｜零台词纯画面镜（仅中间镜可空 line）】',
+'{"no":2,"beat":"冲突推进","cam":"特写 · 俯拍 · 固定机位","summary":"同一张揉皱的孕检单被摊在收银台冰凉的金属台面上，纸面折痕深且未平，边缘沾着一点雨水晕开的墨迹；台面反着冷柜的蓝白光，单子右下角压着一枚找零的硬币，硬币边缘有一道旧划痕；背景虚化的收银员手指停在扫码枪上没动。","line":"","scene":"24小时便利店","light":"顶光冷白硬光直下，纸面高光过曝一点，四周压暗；冷青灰、低饱和、高对比","env":"冷柜嗡鸣持续，门外雨声压低，硬币被气流轻推半毫米","mood":"被摊开的难堪，僵住","face":"（无人物入画，仅收银员虚焦手指停在半空）","dur":4}',
+'',
+'【few-shot 3｜末镜留钩（line 必须非空）】',
+'{"no":8,"beat":"反转留钩","cam":"近景 · 仰拍 · 缓慢推镜约6cm/s","summary":"鸭舌帽男人摘下帽子，湿发贴在额角，嘴角挂着笑，右手把帽子扣在收银台边缘，帽檐压住那张孕检单的一角；便利店顶灯闪了两下，冷白硬光在他脸上明灭，身后玻璃门外雨幕被车灯照成一片白。","line":"孩子……是谁的？","scene":"24小时便利店","light":"顶灯冷白硬光闪烁，面部明暗交替，背景过曝；冷青灰、低饱和、高对比","env":"顶灯闪两下，门外雨声骤大，帽檐压住纸角","mood":"挑衅下的压迫","face":"眼睛直勾勾盯住对方，嘴角单侧上扬，呼吸平稳，拇指摩挲帽檐","dur":5}',
+'',
+'现在按上述结构与密度输出 JSON。'].join('\n');
 
 function apiCfgLoad(){
   try{ var raw=localStorage.getItem(API_LS); return raw?JSON.parse(raw):{}; }catch(e){ return {}; }
@@ -2205,73 +2527,281 @@ function apiStatus(msg, cls){
   var el=$('apiStatus'); el.textContent=msg; el.className='api-status'+(cls?(' '+cls):'');
 }
 /* 从 API 返回文本中稳健地提取 JSON 对象 */
-function extractJSON(text){
-  if(!text) return null;
-  var s=String(text).trim();
-  // 1) 整段就是 JSON
-  try{ return JSON.parse(s); }catch(e){}
-  // 2) ```json ... ``` 包裹
-  var m=s.match(/```(?:json|JSON)?\s*([\s\S]*?)\s*```/);
-  if(m){ try{ return JSON.parse(m[1]); }catch(e){} }
-  // 3) 花括号配对扫描（处理嵌套对象/字符串内括号）
-  var start=s.indexOf('{');
-  while(start>-1){
-    var depth=0, inStr=false, esc=false, end=-1;
-    for(var i=start;i<s.length;i++){
-      var ch=s[i];
-      if(inStr){
-        if(esc){ esc=false; }
-        else if(ch==='\\'){ esc=true; }
-        else if(ch==='"'){ inStr=false; }
-      } else {
-        if(ch==='"'){ inStr=true; }
-        else if(ch==='{'){ depth++; }
-        else if(ch==='}'){ depth--; if(depth===0){ end=i; break; } }
-      }
-    }
-    if(end>-1){
-      var slice=s.slice(start,end+1);
-      try{ return JSON.parse(slice); }catch(e){}
-      // 尝试修掉尾逗号
-      try{ return JSON.parse(slice.replace(/,\s*([}\]])/g,'$1')); }catch(e){}
-    }
-    start=s.indexOf('{',start+1);
+/* ============================================================
+ * T3 · AI 响应归一化健壮性加固
+ * 说明：AI 返回是不可信输入，字段可能缺失/类型错乱/被 markdown 包裹，
+ * 这里统一做「钳制 + 兜底 + 拼接」，保证下游渲染与提示词生成拿到同构对象。
+ * ============================================================ */
+
+/* 把任意值安全转成数字并钳制到 [min,max]；容忍 "5秒" / "5s" / "5" / 5.7 等脏值。
+ * 为什么不用 parseInt 直接吃：parseInt("5秒") 能得 5，但 parseInt("秒5") 得 NaN，
+ * 所以先抽第一段连续数字，抽不到再退回默认值。 */
+function clampNum(v, min, max, dft){
+  var n = NaN;
+  if(typeof v === 'number'){ n = v; }
+  else if(v !== null && v !== undefined){
+    var m = String(v).match(/-?\d+(?:\.\d+)?/);
+    if(m){ n = parseFloat(m[0]); }
   }
-  return null;
+  if(isNaN(n)){ n = dft; }
+  n = Math.round(n);
+  if(n < min){ n = min; }
+  if(n > max){ n = max; }
+  return n;
 }
+
+/* 取第一个「非空字符串」候选，用于多字段名兼容（line/台词/subtitle/text）。
+ * 为什么不用 ||：0 和 '' 都是 falsy，但这里只关心字符串，显式判空更稳。 */
+function pickStr(){
+  for(var i=0;i<arguments.length;i++){
+    var v = arguments[i];
+    if(v !== null && v !== undefined && String(v).replace(/\s+/g,'') !== ''){
+      return String(v);
+    }
+  }
+  return '';
+}
+
+/* 把 AI 可能拆开的机位字段拼成契约格式："景别 · 机位高度 · 运镜方式与速度"。
+ * 为什么单独抽函数：normalizeShot 里 cam 兼容逻辑较长，抽出来便于阅读与复用。 */
+function buildCam(sh){
+  // 1) 若 AI 直接给了完整 cam 字符串，优先用（但要求含分隔符，避免把 "中景" 当完整串）
+  var raw = pickStr(sh.cam, sh.机位, sh.camera);
+  if(raw && raw.indexOf('·') > -1){ return raw; }
+  // 2) 三段式兼容：shotSize/angle/movement（含中文别名）
+  var size = pickStr(sh.shotSize, sh.景别, sh.size);
+  var angle = pickStr(sh.angle, sh.机位高度, sh.height);
+  var move = pickStr(sh.movement, sh.运镜, sh.cameraMove, sh.move);
+  // 3) 若只有裸 cam 且不含分隔符，把它当景别用
+  if(!size && raw){ size = raw; }
+  // 4) 缺段补默认：景别默认中景、机位默认平视、运镜默认固定机位
+  if(!size){ size = '中景'; }
+  if(!angle){ angle = '平视'; }
+  if(!move){ move = '固定机位'; }
+  // 5) 运镜若没带速度描述，补一个保守速度，保证提示词可读
+  if(!/约|速度|\/s|每秒|缓慢|快速|匀速/.test(move)){
+    move = move + '（匀速）';
+  }
+  return size + ' · ' + angle + ' · ' + move;
+}
+
+/* 归一化单个镜头：把 AI 返回的任意形状对象，压成与本地引擎完全同构的 shot。
+ * 契约字段：no,beat,cam,camIdx,summary,line,lines,lineIdx,subtitle,dur,scene,light,env,mood,face,genre,st,ratioText,ratio */
 function normalizeShot(sh, i, ctx){
-  var g=ctx.genre, st=STYLES[g]||STYLES['都市职场'];
-  var ratio=ctx.ratio||'9:16', dur=sh.dur||ctx.dur||5;
-  var line=sh.line||sh.台词||sh.subtitle||sh.text||'';
-  var lineT=String(line).replace(/[。！？；，,、\s]+$/,'');
-  var variants=[line];
-  if(lineT.length>16) variants.push(cutLine(lineT,16));
-  if(OPENERS[g]) variants.push(OPENERS[g]);
-  var scene=sh.scene||ctx.scene||'按剧情自设';
-  var sceneRow=null;
-  SCENES.forEach(function(r){ if(scene.indexOf(r.scene)>-1||r.scene.indexOf(scene)>-1) sceneRow=r; });
+  sh = sh || {};
+  ctx = ctx || {};
+  var g = ctx.genre || '都市职场';
+  var st = STYLES[g] || STYLES['都市职场'];
+  var ratio = ctx.ratio || '9:16';
+
+  // 时长：AI 可能给 999 / "5秒" / 缺省，统一钳制到 [3,10]，缺省用 ctx.dur
+  var dur = clampNum(sh.dur, 3, 10, clampNum(ctx.dur, 3, 10, 5));
+
+  // 台词：多字段名兼容，去掉尾部标点后再做变体
+  var line = pickStr(sh.line, sh.台词, sh.subtitle, sh.text);
+  var lineT = line.replace(/[。！？；，,、\s]+$/,'');
+
+  // 台词变体：原文 + 截断版 + 开场白，供 UI 切换
+  var variants = [line];
+  if(lineT.length > 16){ variants.push(cutLine(lineT, 16)); }
+  if(OPENERS[g]){ variants.push(OPENERS[g]); }
+
+  // 场景：优先 AI 给的，其次 ctx.scene，最后占位；并尝试匹配 SCENES 表补光/环境
+  var scene = pickStr(sh.scene, sh.场景, ctx.scene, '按剧情自设');
+  var sceneRow = null;
+  SCENES.forEach(function(r){
+    if(scene.indexOf(r.scene) > -1 || r.scene.indexOf(scene) > -1){ sceneRow = r; }
+  });
+
+  // summary：空串会让 densify 拼出空壳，这里回退为占位描述
+  var summary = pickStr(sh.summary, sh.画面, sh.desc, sh.description);
+  if(!summary){
+    summary = '镜头 ' + (i + 1) + '：' + scene + '，人物动作与情绪按剧情推进（AI 未返回画面描述，可手动补充）';
+  }
+
+  // 机位：兼容三段式拼接
+  var cam = buildCam(sh);
+
+  // 节拍：AI 未给则按位置推断（与本地引擎 beatFor 保持一致）
+  var beat = pickStr(sh.beat, sh.节拍);
+  if(!beat){ beat = beatFor(i, ctx.count || 8, false); }
+
+  // 画幅文案
+  var ratioText = ratio === '16:9' ? '横屏 16:9' : (ratio === '1:1' ? '方形 1:1' : '竖屏 9:16');
+
   return {
-    no:i+1, beat:sh.beat||'冲突推进', cam:sh.cam||'中景 · 固定机位', camIdx:0,
-    summary:sh.summary||sh.画面||sh.desc||sh.description||'',
-    line:line, lines:variants, lineIdx:0,
-    subtitle:cutLine(lineT,26),
-    dur:dur, scene:scene,
-    light:sh.light||sh.光照||(sceneRow?sceneRow.light:''),
-    env:sh.env||sh.环境||(sceneRow?sceneRow.env:'风动发梢、光影自然流转'),
-    mood:sh.mood||sh.情绪||'自然情绪',
-    face:sh.face||sh.表演||'人物表演自然、真实',
-    genre:g, st:st, ratioText:(ratio==='16:9'?'横屏 16:9':ratio==='1:1'?'方形 1:1':'竖屏 9:16'), ratio:ratio
+    no: i + 1,
+    beat: beat,
+    cam: cam,
+    camIdx: 0,
+    summary: summary,
+    line: line,
+    lines: variants,
+    lineIdx: 0,
+    subtitle: cutLine(lineT, 26),
+    dur: dur,
+    scene: scene,
+    light: pickStr(sh.light, sh.光照, sceneRow ? sceneRow.light : ''),
+    env: pickStr(sh.env, sh.环境, sceneRow ? sceneRow.env : '风动发梢、光影自然流转'),
+    mood: pickStr(sh.mood, sh.情绪, '自然情绪'),
+    face: pickStr(sh.face, sh.表演, '人物表演自然、真实'),
+    genre: g,
+    st: st,
+    ratioText: ratioText,
+    ratio: ratio
   };
 }
+
+/* 把 AI 返回的镜头数组补齐到 count 个。
+ * 为什么需要：AI 常少返镜（比如要 8 镜只给 6 镜），缺镜会让画布节点数不对、总时长不足。
+ * 补位策略：用 beatFor 按位置推断节拍，summary 用占位描述，其余字段沿用 ctx 与 SCENES 兜底。
+ * 末尾对 AI 产物跑一次 fixDialogue，保证相邻台词镜隔离（AI 链路原本没有这一步）。 */
+function padShots(shots, count, ctx){
+  shots = shots || [];
+  ctx = ctx || {};
+  count = parseInt(count, 10);
+  if(isNaN(count) || count < 1){ count = 8; }
+
+  var g = ctx.genre || '都市职场';
+  var st = STYLES[g] || STYLES['都市职场'];
+  var ratio = ctx.ratio || '9:16';
+  var ratioText = ratio === '16:9' ? '横屏 16:9' : (ratio === '1:1' ? '方形 1:1' : '竖屏 9:16');
+  var scene = pickStr(ctx.scene, '按剧情自设');
+  var sceneRow = null;
+  SCENES.forEach(function(r){
+    if(scene.indexOf(r.scene) > -1 || r.scene.indexOf(scene) > -1){ sceneRow = r; }
+  });
+
+  // 1) 先截断多余镜（AI 多返时以 count 为准）
+  var out = shots.slice(0, count);
+
+  // 2) 再补缺镜：从当前长度补到 count
+  for(var i = out.length; i < count; i++){
+    var beat = beatFor(i, count, false);
+    var cam = buildCam({ shotSize: '中景', angle: '平视', movement: '固定机位' });
+    out.push({
+      no: i + 1,
+      beat: beat,
+      cam: cam,
+      camIdx: 0,
+      summary: '镜头 ' + (i + 1) + '：' + scene + '，承接上一镜情绪，画面留白由表演与光影承载（AI 未返回本镜，可手动补充）',
+      line: '',
+      lines: [''],
+      lineIdx: 0,
+      subtitle: '',
+      dur: clampNum(ctx.dur, 3, 10, 5),
+      scene: scene,
+      light: sceneRow ? sceneRow.light : '',
+      env: sceneRow ? sceneRow.env : '风动发梢、光影自然流转',
+      mood: '自然情绪',
+      face: '人物表演自然、真实',
+      genre: g,
+      st: st,
+      ratioText: ratioText,
+      ratio: ratio
+    });
+  }
+
+  // 3) 重排 no，保证连续（AI 可能乱序或重复）
+  for(var k = 0; k < out.length; k++){ out[k].no = k + 1; }
+
+  // 4) 轻量 fixDialogue：AI 链路原本没调用，这里补上，避免相邻台词镜
+  //    fixDialogue 直接改数组，调用即可；用 try 兜底防止其内部异常影响主流程
+  try{ fixDialogue(out); }catch(e){}
+
+  return out;
+}
+
+/* 强化版 extractJSON：在原有「整段 / ```json 包裹 / 花括号配对」三层基础上，
+ * 补两个高频脏数据修复：
+ *   a) 字符串值内含真实换行（AI 常把多行描述直接写进 JSON 字符串）→ 转义为 \n
+ *   b) 尾逗号（{"a":1,}）→ 去掉
+ * 为什么修复顺序是「先尾逗号再换行」：尾逗号修复是纯正则、成本低，先跑能覆盖更多情况；
+ * 换行修复需要状态机扫描，放后面只在必要时跑。 */
+function extractJSON(text){
+  if(!text){ return null; }
+  var s = String(text).trim();
+
+  // 内部工具：对一段候选串做多轮修复尝试
+  function tryParse(str){
+    // 1) 直接解析
+    try{ return JSON.parse(str); }catch(e){}
+    // 2) 去尾逗号
+    var noTrail = str.replace(/,\s*([}\]])/g, '$1');
+    try{ return JSON.parse(noTrail); }catch(e){}
+    // 3) 转义字符串值内的裸换行（状态机：只在 inStr 内把 \n/\r 替换为 \\n）
+    var fixed = '';
+    var inStr = false, esc = false;
+    for(var i = 0; i < noTrail.length; i++){
+      var ch = noTrail.charAt(i);
+      if(inStr){
+        if(esc){ fixed += ch; esc = false; }
+        else if(ch === '\\'){ fixed += ch; esc = true; }
+        else if(ch === '"'){ fixed += ch; inStr = false; }
+        else if(ch === '\n'){ fixed += '\\n'; }
+        else if(ch === '\r'){ /* 丢弃 CR，避免 \r\n 变 \n\n */ }
+        else if(ch === '\t'){ fixed += '\\t'; }
+        else { fixed += ch; }
+      } else {
+        if(ch === '"'){ inStr = true; }
+        fixed += ch;
+      }
+    }
+    try{ return JSON.parse(fixed); }catch(e){}
+    // 4) 换行修复 + 尾逗号再兜一次（顺序反过来）
+    var fixed2 = fixed.replace(/,\s*([}\]])/g, '$1');
+    try{ return JSON.parse(fixed2); }catch(e){}
+    return null;
+  }
+
+  // 1) 整段就是 JSON
+  var r1 = tryParse(s);
+  if(r1 !== null){ return r1; }
+
+  // 2) ```json ... ``` 包裹
+  var m = s.match(/```(?:json|JSON)?\s*([\s\S]*?)\s*```/);
+  if(m){
+    var r2 = tryParse(m[1]);
+    if(r2 !== null){ return r2; }
+  }
+
+  // 3) 花括号配对扫描（处理前后有解释文字、嵌套对象、字符串内括号）
+  var start = s.indexOf('{');
+  while(start > -1){
+    var depth = 0, inStr = false, esc = false, end = -1;
+    for(var i = start; i < s.length; i++){
+      var ch = s.charAt(i);
+      if(inStr){
+        if(esc){ esc = false; }
+        else if(ch === '\\'){ esc = true; }
+        else if(ch === '"'){ inStr = false; }
+      } else {
+        if(ch === '"'){ inStr = true; }
+        else if(ch === '{'){ depth++; }
+        else if(ch === '}'){ depth--; if(depth === 0){ end = i; break; } }
+      }
+    }
+    if(end > -1){
+      var slice = s.slice(start, end + 1);
+      var r3 = tryParse(slice);
+      if(r3 !== null){ return r3; }
+    }
+    start = s.indexOf('{', start + 1);
+  }
+
+  return null;
+}
+
 function applyApiResult(obj){
   var g=obj.genre||detectGenre(state.story||'');
   var shotsRaw=(obj.shots||obj.镜头||[]);
   var ratio=$('ratio').value||'9:16';
   var dur=obj.dur||parseInt($('len').value,10)||5;
-  var ctx={genre:g, ratio:ratio, dur:dur, scene:(obj.scenes||[])[0]||''};
+  var cnt=parseInt($('count').value,10)||8;
+  var ctx={genre:g, ratio:ratio, dur:dur, scene:(obj.scenes||[])[0]||'', count:cnt};
   if(!shotsRaw.length && obj.shot_list) shotsRaw=obj.shot_list;
   if(!shotsRaw.length && obj.scripts) shotsRaw=obj.scripts;
-  state.shots=shotsRaw.map(function(sh,i){ return normalizeShot(sh,i,ctx); });
+  state.shots=padShots(shotsRaw.map(function(sh,i){ return normalizeShot(sh,i,ctx); }), cnt, ctx);
   state.genre=g;
   state.st=STYLES[g]||STYLES['都市职场'];
   state.scene=ctx.scene||'通用';
