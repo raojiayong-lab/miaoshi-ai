@@ -754,7 +754,7 @@
   .chat-tostory:hover{background:rgba(123,211,192,.18)}
   .chat-tostory:disabled{opacity:.5;cursor:not-allowed}
   /* v11：AI 分组列衬底（世界最底层 z0，节点 auto 在其上，标签 z2 顶层） */
-  .wb10-colbg{position:absolute;z-index:0;pointer-events:none;border:1px solid rgba(123,211,192,.16);border-radius:14px;background:rgba(123,211,192,.045)}
+  .wb10-colbg{position:absolute;z-index:0;pointer-events:none;border:1px solid rgba(123,211,192,.26);border-radius:14px;background:rgba(123,211,192,.07)}
   .wb10-colbg.wb10-cb-in{animation:wb10ColIn .38s var(--ease-out) both}
   @keyframes wb10ColIn{from{opacity:0;transform:scale(.985) translateY(4px)}to{opacity:1;transform:none}}
 
@@ -2898,6 +2898,7 @@ function chatToStory(){
   function fill(story){
     $('story').value=story;
     $('charCount').textContent=story.length+' 字';
+    var ci=$('chatInput'); if(ci){ ci.value=''; ci.style.height='auto'; } /* 剧情已取走，清掉输入草稿 */
     state._chatAutoLayout=1; /* v11：接下来点「生成分镜」→ 出镜后自动接 AI 排版 */
     showView('workbench');
     toast('剧情已就绪 · 点「生成分镜提示词」开始制作','ok');
