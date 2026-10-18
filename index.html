@@ -322,6 +322,67 @@
   /* 图例操作提示 */
   .wb-legend .lg-op{display:inline-flex;align-items:center;gap:4px;color:var(--muted)}
   .wb-legend .lg-op::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--accent)}
+  /* ===== v8：小地图拖动 / 框选增强 / 删除·回收站 / AI 排版 / 缩放条 ===== */
+  /* 小地图：可按住拖动连续平移 */
+  .wb-mini{cursor:grab;touch-action:none}
+  .wb-mini.dragging{cursor:grabbing}
+  /* 框选实时计数徽章（舞台屏幕空间） */
+  .wb-mq-count{position:absolute;z-index:29;background:var(--panel);border:1px solid var(--accent);border-radius:8px;
+    padding:2px 9px;font-size:11px;font-weight:700;color:var(--ink);pointer-events:none;display:none;white-space:nowrap;
+    box-shadow:0 4px 14px rgba(0,0,0,.45);font-variant-numeric:tabular-nums}
+  .wb-mq-count.on{display:block}
+  /* 节点删除按钮（悬停显现，触屏常显） */
+  .wb-nodehead{padding-right:26px}
+  .wbn-del{position:absolute;top:5px;right:5px;width:22px;height:22px;border-radius:50%;border:1px solid var(--wb-border);
+    background:var(--panel);color:var(--muted);font-size:13px;line-height:1;cursor:pointer;display:flex;align-items:center;
+    justify-content:center;opacity:0;transition:opacity .15s ease,background .15s ease,color .15s ease;z-index:5;padding:0}
+  .wb-node:hover .wbn-del,.wbn-del:focus{opacity:1}
+  .wbn-del:hover{background:var(--err);color:#fff;border-color:var(--err)}
+  @media(hover:none){.wbn-del{opacity:.75}}
+  /* 回收站面板（脚本重现） */
+  .wb-trash{position:absolute;top:58px;left:10px;z-index:12;width:284px;max-height:46%;overflow-y:auto;
+    background:var(--panel);border:1px solid var(--wb-border);border-radius:12px;padding:10px;box-shadow:0 14px 36px rgba(0,0,0,.55)}
+  .wb-trash[hidden]{display:none}
+  .wb-trash-h{font-size:12px;font-weight:800;color:var(--ink);margin-bottom:6px}
+  .wb-trash-item{display:flex;align-items:center;gap:8px;padding:7px 6px;border-radius:8px}
+  .wb-trash-item+.wb-trash-item{border-top:1px solid var(--wb-border)}
+  .wb-trash-no{font-size:11px;color:var(--accent);font-weight:700;flex:none}
+  .wb-trash-txt{flex:1;min-width:0;font-size:12px;color:var(--body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .wb-trash-back{flex:none;min-height:30px;padding:0 10px;font-size:12px;border-radius:8px;border:1px solid rgba(123,211,192,.35);
+    background:var(--teal-soft);color:var(--teal);cursor:pointer}
+  .wb-trash-back:hover{background:var(--teal);color:#0E0F14}
+  .wb-trash-empty{font-size:12px;color:var(--muted);padding:6px 2px}
+  /* AI 排版按钮 + 计数徽标 */
+  .wb-btn.ai{background:linear-gradient(135deg,rgba(255,77,109,.18),rgba(123,211,192,.18));color:var(--ink);
+    border-color:rgba(255,77,109,.45);font-weight:700}
+  .wb-btn.ai:hover{border-color:var(--accent);color:#fff}
+  .wb-btn[disabled]{opacity:.45;cursor:not-allowed}
+  .wb-btn .cnt{display:inline-block;min-width:16px;margin-left:5px;padding:0 4px;border-radius:8px;background:var(--accent-strong);
+    color:#fff;font-size:10px;line-height:16px;text-align:center;font-weight:700}
+  .wb-btn[hidden]{display:none}
+  /* 缩放条：百分比可点击回 100%，适应为文字键 */
+  .wb-zoombar{box-shadow:0 8px 24px rgba(0,0,0,.4);padding:4px 10px}
+  .wb-zoom{cursor:pointer;min-width:46px;text-align:center;border-radius:8px;padding:4px 2px;font-variant-numeric:tabular-nums}
+  .wb-zoom:hover{background:rgba(123,211,192,.12);color:var(--teal)}
+  .wb-zbar-sep{width:1px;height:20px;background:var(--wb-border);margin:0 3px;flex:none}
+  .wb-zbtn.txt{font-size:12.5px;min-width:auto;padding:0 10px;font-weight:700}
+  /* AI 排版位移动画（仅排版时挂 .anim，避免拖拽跟手延迟） */
+  .wb-world.anim .wb-node{transition:left .5s cubic-bezier(.22,.61,.36,1),top .5s cubic-bezier(.22,.61,.36,1)}
+  /* 工具栏排版：提示文字省略号 + 统一按钮高度 */
+  .wb-top{gap:6px}
+  .wb-tip{flex:1 1 130px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .wb-btn{min-height:34px;padding:0 12px;font-size:12.5px}
+  .wb-rows button{min-height:34px}
+  .wb-float button{min-height:34px}
+  .wb-zbtn{min-width:36px;min-height:36px}
+  @media(max-width:767px){
+    .wb-btn{min-height:44px}
+    .wb-rows button{min-height:40px}
+    .wb-tip{display:none}
+  }
+  /* 图例：分组分隔线 */
+  .wb-legend{gap:4px 10px;line-height:1.5}
+  .wb-legend .lg-sep{width:1px;height:12px;background:var(--wb-border);margin:0 2px;flex:none}
   /* 素材库 */
   .wb-assets{position:absolute;top:56px;left:10px;bottom:10px;width:290px;z-index:11;background:var(--wb-assets);border:1px solid var(--wb-border);border-radius:12px;padding:12px;overflow-y:auto;transition:transform .25s ease}
   .wb-assets[hidden]{display:none}
@@ -1511,7 +1572,7 @@ function fixDialogue(shots){
 function totalDur(shots){return shots.reduce(function(a,s){return a+s.dur;},0);}
 
 /* ---------- 状态 ---------- */
-var state={shots:[], genre:'', st:null, scene:'', ratioText:'', ratio:'9:16', dur:5, roles:[], scenes:[], highlights:[], waterRemoved:0, history:[]};
+var state={shots:[], genre:'', st:null, scene:'', ratioText:'', ratio:'9:16', dur:5, roles:[], scenes:[], highlights:[], waterRemoved:0, history:[], trash:[]};
 
 /* ---------- 渲染 ---------- */
 function renderAll(){
@@ -1806,6 +1867,7 @@ function scriptNodeHtml(s){
   var line=cvLine(s);
   return '<div class="wb-node" data-type="script" data-i="'+s.no+'" data-st="done" data-k="s'+s.no+'_script" style="--i:'+(s.no-1)+';width:'+COL_W+'px">'
     +'<div class="wb-port out" title="输出"></div>'
+    +'<button type="button" class="wbn-del" data-nodedel="'+s.no+'" title="删除这个镜头（Ctrl+Z 撤销 · 回收站可放回）">×</button>'
     +'<div class="wb-nodehead"><span class="wbn-rec"></span><span class="wbn-no">镜 '+s.no+'</span><span class="wbn-beat">'+s.beat+'</span><span class="wbn-cam">'+esc(s.cam.split('·')[0].trim())+'</span></div>'
     +'<div class="wbn-summary">'+esc(s.summary)+'</div>'
     +(line?'<div class="wbn-line" data-edit="line" data-i="'+s.no+'">'+esc(line)+'</div>':'')
@@ -2029,8 +2091,10 @@ function renderCanvas(reset){
       +'<button type="button" data-row="all" class="'+(box._wb._rows==='all'?'on':'')+'">全展开</button>'
       +'</div>'
       +'<button type="button" class="wb-btn" data-wb-tidy title="恢复默认列布局">重排</button>'
+      +'<button type="button" class="wb-btn ai" data-wb-ailayout title="调用 DeepSeek 按叙事节奏自动排版（需先在 API 设置填 Token）">✦ AI 排版</button>'
+      +'<button type="button" class="wb-btn" data-wb-trashbtn hidden title="被删的脚本镜头，可放回画布">回收站</button>'
       +'<button type="button" class="wb-btn primary" data-wb-export><span class="vf vf1"></span><span class="vf vf2"></span><span class="vf vf3"></span><span class="vf vf4"></span>复制全片提示词</button>'
-      +'<span class="wb-tip">脚本 → 出图提示词 → 视频提示词，逐镜复制去即梦/可灵</span>'
+      +'<span class="wb-tip" title="脚本 → 出图提示词 → 视频提示词，逐镜复制去即梦 / 可灵">脚本 → 出图 → 视频提示词，逐镜复制去即梦 / 可灵</span>'
     +'</div>'
     +'<div class="wb-stage" data-wb-stage>'
       +'<div class="wb-world" data-wb-world style="width:'+worldW+'px;height:'+worldH+'px">'
@@ -2046,21 +2110,26 @@ function renderCanvas(reset){
           return h;
         }).join('')
       +'</div>'
-      /* 框选遮罩与吸附参考线：舞台屏幕空间，不随世界变换缩放 */
+      /* 框选遮罩 / 计数徽章 / 吸附参考线：舞台屏幕空间，不随世界变换缩放 */
       +'<div class="wb-marquee" data-wb-marquee hidden></div>'
+      +'<div class="wb-mq-count" data-wb-mqcount></div>'
       +'<div class="wb-guides" data-wb-guides></div>'
     +'</div>'
     +'<div class="wb-float" data-wb-float style="display:none"></div>'
+    +'<div class="wb-trash" data-wb-trash hidden></div>'
     +'<div class="wb-mini" data-wb-mini><canvas width="160" height="90"></canvas></div>'
     +'<div class="wb-legend" role="note">'
       +'<b>节点</b><span class="lg-node lg-script"><i></i>脚本</span><span class="lg-node lg-image"><i></i>出图提示词</span><span class="lg-node lg-video"><i></i>视频提示词</span>'
+      +'<span class="lg-sep"></span>'
       +'<b>连线</b><span class="lg-line lg-flow"><i></i>镜次推进</span><span class="lg-line lg-pipe"><i></i>先图后动</span><span class="lg-line lg-alt"><i></i>备选运镜</span>'
-      +'<b>操作</b><span class="lg-op">空白拖拽=框选</span><span class="lg-op">空格=平移</span><span class="lg-op">方向键=微调</span>'
+      +'<span class="lg-sep"></span>'
+      +'<b>操作</b><span class="lg-op">空白拖拽=框选</span><span class="lg-op">Shift 加选 / Alt 减选</span><span class="lg-op">空格=平移</span><span class="lg-op">方向键=微调</span><span class="lg-op">Del=删除 / Ctrl+Z=撤销</span>'
     +'</div>'
-    +'<div class="wb-zoombar"><button type="button" class="wb-zbtn" data-wb-z="-" aria-label="缩小">−</button>'
-      +'<span class="wb-zoom" data-wb-zoom>70%</span>'
-      +'<button type="button" class="wb-zbtn" data-wb-z="+" aria-label="放大">+</button>'
-      +'<button type="button" class="wb-zbtn" data-wb-fit>适应</button></div>'
+    +'<div class="wb-zoombar"><button type="button" class="wb-zbtn" data-wb-z="-" aria-label="缩小" title="缩小">−</button>'
+      +'<span class="wb-zoom" data-wb-zoom data-wb-z="100" title="点击回到 100%">70%</span>'
+      +'<button type="button" class="wb-zbtn" data-wb-z="+" aria-label="放大" title="放大">+</button>'
+      +'<span class="wb-zbar-sep"></span>'
+      +'<button type="button" class="wb-zbtn txt" data-wb-fit title="缩放以适应全部内容">适应</button></div>'
     +'<div class="wb-assets" data-wb-assets-panel hidden>'+cvAssetsHtml()+'</div>'
     +'</div>';
   bindWorkbench();
@@ -2071,6 +2140,7 @@ function renderCanvas(reset){
   drawMinimap(box);
   /* 恢复多选样式与浮条（跨重绘保持选择） */
   if(box._wb._msel.length){ wbApplySelClasses(box); wbRefreshFloat(box); }
+  wbRefreshTrash(box);
   /* 全新生成 → 适应视图；移动端默认铺满 */
   if(reset||mob) wbFitView(box);
   box._cvBuilt=1;
@@ -2170,6 +2240,202 @@ function wbSelShotNos(box){
   });
   return nos;
 }
+/* —— v8：删除镜头（数据+节点）与回收站（脚本重现） —— */
+function syncOutputPanel(){
+  try{
+    var t=$('outTitle'); if(t) t.textContent=state.genre+' · '+state.shots.length+' 镜漫剧分镜';
+    var m=$('outMeta'); if(m&&state.shots.length) m.textContent=state.scene+' · 约'+totalDur(state.shots)+'秒 · '+state.ratioText+' · 单镜'+state.dur+'s'+(state.waterRemoved?' · 已剔水 '+state.waterRemoved+' 句':'');
+    if(typeof renderSummary==='function') renderSummary();
+    if(typeof renderAnalysis==='function') renderAnalysis();
+    if(typeof renderPrompt==='function') renderPrompt();
+    if(typeof renderLine==='function') renderLine();
+    if(typeof renderAdvice==='function') renderAdvice();
+  }catch(_){}
+}
+function wbDeleteShots(box,nos){
+  if(!nos||!nos.length) return;
+  var removed=[];
+  pushHistory();
+  nos.forEach(function(no){
+    for(var i=0;i<state.shots.length;i++){
+      if(state.shots[i].no===no){ removed.push({shot:state.shots[i],idx:i}); state.shots.splice(i,1); break; }
+    }
+  });
+  if(!removed.length){ toast('没有可删除的镜头'); return; }
+  /* 重编号：保持 no === 下标+1（批量按钮与提示词按钮都依赖该不变式），WB_POS 键随迁 */
+  var remap={};
+  state.shots.forEach(function(s,i){ remap['s'+s.no]=i+1; s.no=i+1; });
+  var np={};
+  Object.keys(WB_POS).forEach(function(k){
+    var m=/^s(\d+)_([\s\S]+)$/.exec(k);
+    if(!m){ np[k]=WB_POS[k]; return; }
+    var nn=remap['s'+m[1]];
+    if(nn==null) return; /* 被删镜头的坐标丢弃 */
+    np['s'+nn+'_'+m[2]]=WB_POS[k];
+  });
+  WB_POS=np;
+  state.trash=state.trash||[];
+  removed.forEach(function(r){ state.trash.unshift({shot:r.shot,idx:r.idx}); });
+  if(state.trash.length>10) state.trash.length=10;
+  renderCanvas(); box._cvBuilt=1;
+  /* 清掉指向已删节点的残留选择 */
+  box._wb._msel=(box._wb._msel||[]).filter(function(k){ return !!box.querySelector('.wb-node[data-k="'+k+'"]'); });
+  if(box._wb._sel!=null&&!box.querySelector('.wb-node[data-i="'+box._wb._sel+'"]')) box._wb._sel=null;
+  wbApplySelClasses(box); wbRefreshFloat(box); wbRefreshTrash(box);
+  syncOutputPanel();
+  toast('已删除 '+removed.length+' 镜 · Ctrl+Z 撤销 · 回收站可放回');
+}
+function wbRestoreShot(box,ti){
+  var it=(state.trash||[])[ti]; if(!it) return;
+  pushHistory();
+  var idx=Math.max(0,Math.min(it.idx||0,state.shots.length));
+  state.shots.splice(idx,0,it.shot);
+  state.trash.splice(ti,1);
+  /* 重编号 + 回默认列布局（恢复操作不猜用户旧布局，简单可靠） */
+  state.shots.forEach(function(s,i){ s.no=i+1; });
+  WB_POS={};
+  renderCanvas(); box._cvBuilt=1;
+  wbRefreshTrash(box);
+  syncOutputPanel();
+  toast('脚本镜头已放回画布（布局已重排）');
+}
+function wbRefreshTrash(box){
+  var btn=box.querySelector('[data-wb-trashbtn]');
+  var panel=box.querySelector('[data-wb-trash]');
+  var n=(state.trash||[]).length;
+  if(btn){
+    btn.hidden=(n===0);
+    btn.title=n?('回收站：'+n+' 个已删脚本镜头，可放回画布'):'回收站';
+    btn.innerHTML='回收站<span class="cnt">'+n+'</span>';
+  }
+  if(panel&&!panel.hidden){
+    if(!n){ panel.hidden=true; panel.innerHTML=''; return; }
+    var h='<div class="wb-trash-h">已删除的脚本镜头 · 点「放回」重现到画布</div>';
+    state.trash.forEach(function(it,i){
+      var s=it.shot||{};
+      var txt=String(s.line||s.summary||'（空脚本）');
+      h+='<div class="wb-trash-item"><span class="wb-trash-no">'+(i+1)+'</span>'
+        +'<span class="wb-trash-txt" title="'+esc(txt)+'">'+esc(txt.slice(0,26))+'</span>'
+        +'<button type="button" class="wb-trash-back" data-trashback="'+i+'">放回</button></div>';
+    });
+    panel.innerHTML=h;
+  }
+}
+/* —— v8：窗口变化后的视图钳制（用户在"适应"档则重新适应，否则只防内容跑丢） —— */
+function wbClampView(box){
+  var st=box._wb; if(!st) return;
+  var stage=wbStageOf(box); if(!stage) return;
+  var wb=worldBox(box), sw=stage.clientWidth, sh=stage.clientHeight, M=60;
+  var cw=wb.w*st.scale, ch=wb.h*st.scale;
+  if(cw<=sw) st.tx=(sw-cw)/2; else st.tx=Math.min(M,Math.max(sw-cw-M,st.tx));
+  if(ch<=sh) st.ty=(sh-ch)/2; else st.ty=Math.min(M,Math.max(sh-ch-M,st.ty));
+  applyWbTransform(box); drawMinimap(box);
+}
+/* —— v8：DeepSeek AI 自动排版（AI 管叙事分组，几何由本地实算，稳） —— */
+function normAiGroups(obj){
+  if(!obj) return null;
+  var gs=obj.groups||obj.排版||obj.layout||obj.cols;
+  if(!Array.isArray(gs)||!gs.length) return null;
+  var n=state.shots.length, seen={}, out=[];
+  for(var i=0;i<gs.length;i++){
+    var g=gs[i]||{};
+    var raw=g.nos||g.shots||g.镜号||g.list||[];
+    if(!Array.isArray(raw)) raw=[raw];
+    var nos=[];
+    for(var j=0;j<raw.length;j++){
+      var v=+raw[j];
+      if(v>=1&&v<=n&&!seen[v]){ seen[v]=1; nos.push(v); }
+    }
+    if(nos.length) out.push({label:String(g.label||g.name||g.节拍||g.title||'分组').slice(0,6),nos:nos});
+  }
+  /* 兜底：AI 漏掉的镜号按原顺序并入末组，保证不重不漏 */
+  for(var k=1;k<=n;k++){
+    if(!seen[k]){
+      if(!out.length) out.push({label:'全部',nos:[]});
+      out[out.length-1].nos.push(k);
+    }
+  }
+  return out.length?out:null;
+}
+function applyAiLayout(box,groups){
+  var world=box.querySelector('[data-wb-world]');
+  if(world) world.classList.add('anim');
+  var x=80;
+  groups.forEach(function(g){
+    var y=70;
+    g.nos.forEach(function(no){
+      var scriptY=y;
+      var sc=box.querySelector('.wb-node[data-type="script"][data-i="'+no+'"]');
+      if(sc){
+        sc.style.left=x+'px'; sc.style.top=y+'px';
+        WB_POS['s'+no+'_script']={x:x,y:y};
+        y=parseFloat(sc.style.top)+sc.offsetHeight+26;
+      }
+      /* 出图/视频链在脚本正下方；当前行折叠不可见的清掉旧坐标，展开时重新链位 */
+      var im=box.querySelector('.wb-node[data-type="image"][data-i="'+no+'"]');
+      if(im){ im.style.left=x+'px'; im.style.top=y+'px'; WB_POS['s'+no+'_img']={x:x,y:y}; y=parseFloat(im.style.top)+im.offsetHeight+26; }
+      else delete WB_POS['s'+no+'_img'];
+      var vd=box.querySelector('.wb-node[data-type="video"][data-i="'+no+'"]');
+      if(vd){ vd.style.left=x+'px'; vd.style.top=y+'px'; WB_POS['s'+no+'_vid']={x:x,y:y}; y=parseFloat(vd.style.top)+vd.offsetHeight+26; }
+      else delete WB_POS['s'+no+'_vid'];
+      /* 变体挂在脚本右侧 */
+      var s=null;
+      for(var i=0;i<state.shots.length;i++){ if(state.shots[i].no===no){ s=state.shots[i]; break; } }
+      if(s&&s.alts&&s.alts.length){
+        s.alts.forEach(function(alt,ai){
+          var an=box.querySelector('.wb-node.alt[data-i="'+no+'"][data-alt="'+ai+'"]');
+          if(an){
+            var ax=x+COL_W+24+ai*190;
+            an.style.left=ax+'px'; an.style.top=scriptY+'px';
+            WB_POS['s'+no+'_alt'+ai]={x:ax,y:scriptY};
+          }
+        });
+      }
+      y+=18; /* 组内镜间距 */
+    });
+    x+=COL_W+COL_GAP;
+  });
+  drawLinks(box); drawMinimap(box);
+  setTimeout(function(){ wbFitView(box); },60);
+  setTimeout(function(){ if(world) world.classList.remove('anim'); },700);
+}
+function aiLayout(){
+  var box=document.getElementById('panelCanvas');
+  if(!box||!box._wb){ toast('请先切换到「画布」页'); return; }
+  if(!state.shots||!state.shots.length){ toast('画布是空的，先生成分镜再排版'); return; }
+  var key=($('apiKey').value||'').trim();
+  if(!key){ toast('AI 排版需要 API Key：点右上角「API 设置」填入 DeepSeek Token'); return; }
+  var url=($('apiUrl').value||'').trim()||'https://api.deepseek.com/chat/completions';
+  var model=($('apiModel').value||'').trim()||'deepseek-chat';
+  var btn=box.querySelector('[data-wb-ailayout]');
+  if(btn){ btn.disabled=true; btn.textContent='排版中…'; }
+  /* 紧凑镜头清单：镜号|节拍|景别|秒数|台词前16字 */
+  var lines=state.shots.map(function(s){
+    return s.no+'|'+(s.beat||'情节')+'|'+(s.cam||'').split('·')[0].trim()+'|'+s.dur+'|'+String(s.line||s.summary||'').replace(/\s+/g,' ').slice(0,16);
+  }).join('\n');
+  var sys='你是漫剧分镜画布的排版引擎。任务：把镜头按叙事节奏分组，供无限画布自动排版。'
+    +'只输出 JSON，禁止任何解释文字。格式：{"groups":[{"label":"分组名","nos":[镜号,镜号]}]}。'
+    +'规则：① 全部镜号必须恰好出现一次，不重不漏；② 每组 1-4 镜，同组镜头叙事上紧相关；'
+    +'③ 组与组内都按叙事先后排序；④ label 用 2-4 个汉字概括该组节奏；⑤ 镜号用输入里的数字。';
+  fetch(url,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+    body:JSON.stringify({model:model,messages:[{role:'system',content:sys},{role:'user',content:'镜头列表（镜号|节拍|景别|秒数|台词）：\n'+lines}],temperature:0.3,max_tokens:1024})
+  }).then(function(res){
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    return res.json();
+  }).then(function(data){
+    var ch=data&&data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content;
+    var groups=ch?normAiGroups(extractJSON(ch)):null;
+    if(!groups) throw new Error('AI 返回的排版没法用');
+    applyAiLayout(box,groups);
+    toast('AI 排版完成：'+groups.length+' 组 · 已按叙事节奏重排');
+  }).catch(function(err){
+    toast('AI 排版失败（'+err.message+'）· 可点「重排」用默认布局');
+  }).then(function(){
+    if(btn){ btn.disabled=false; btn.textContent='✦ AI 排版'; }
+  });
+}
 /* —— 浮条：单选 = 镜头操作；多选 = 批量操作 + 对齐工具 —— */
 function wbRefreshFloat(box){
   var fl=box.querySelector('[data-wb-float]'); if(!fl) return;
@@ -2182,6 +2448,7 @@ function wbRefreshFloat(box){
       +'<button type="button" data-fb="alt">+ 替代方案</button>'
       +'<button type="button" data-fb="cam">换运镜</button>'
       +'<button type="button" data-fb="cmp">比较模式</button>'
+      +'<button type="button" data-fb="del" title="删除所选镜头（Ctrl+Z 撤销）">删除</button>'
       +'<span class="fb-sep"></span>'
       +'<button type="button" data-fbal="l">左对齐</button>'
       +'<button type="button" data-fbal="cx">水平居中</button>'
@@ -2190,10 +2457,20 @@ function wbRefreshFloat(box){
   } else {
     fl.innerHTML='<button type="button" data-fb="alt">+ 替代方案</button>'
       +'<button type="button" data-fb="cam">换运镜</button>'
-      +'<button type="button" data-fb="cmp">比较模式</button>';
+      +'<button type="button" data-fb="cmp">比较模式</button>'
+      +'<button type="button" data-fb="del" title="删除这个镜头（Ctrl+Z 撤销）">删除</button>';
   }
 }
 /* —— 视图：适应窗口按内容包围盒实算，非写死 0.7 —— */
+/* 只算适应缩放（不应用），供 resize 监听判断用户是否处于「适应」档 */
+function wbFitScale(box){
+  var st=box._wb; if(!st) return null;
+  var stage=wbStageOf(box); if(!stage) return null;
+  var wb=worldBox(box);
+  var sw=stage.clientWidth, sh=stage.clientHeight;
+  if(!wb.w||!wb.h||!sw||!sh) return null;
+  return Math.min(2,Math.max(0.3,Math.min((sw-60)/wb.w,(sh-60)/wb.h,1)));
+}
 function wbFitView(box){
   var st=box._wb; if(!st) return;
   var stage=wbStageOf(box); if(!stage) return;
@@ -2299,7 +2576,7 @@ function wbGestureBind(box){
   var stage=wbStageOf(box); if(!stage) return;
   /* 交互元素不启手势：按钮/端口/可编辑台词/折叠摘要/浮条/小地图/工具条/素材库/图例/缩放条 */
   function isUI(t){
-    return !!(t.closest&&t.closest('button,a,input,textarea,select,summary,[data-edit="line"],[contenteditable="true"],.wb-mini,.wb-top,.wb-assets,.wb-legend,.wb-zoombar,.wb-float'));
+    return !!(t.closest&&t.closest('button,a,input,textarea,select,summary,[data-edit="line"],[contenteditable="true"],.wb-mini,.wb-top,.wb-assets,.wb-legend,.wb-zoombar,.wb-float,.wb-trash'));
   }
   box.addEventListener('pointerdown',function(e){
     var st=box._wb; if(!st) return;
@@ -2334,15 +2611,41 @@ function wbGestureBind(box){
     }
     wbStartMarquee(box,e);
   });
-  /* —— 框选 —— */
+  /* —— 框选（v8：Shift 加选 / Alt 减选 / 实时计数徽章 / Esc 取消） —— */
   function wbStartMarquee(box,e){
     var st=box._wb;
     var stage=wbStageOf(box); if(!stage) return; /* innerHTML 重绘后舞台是全新元素，必须现取 */
     var rect=stage.getBoundingClientRect();
     var sx=e.clientX-rect.left, sy=e.clientY-rect.top;
     var mq=box.querySelector('[data-wb-marquee]');
+    var mqc=box.querySelector('[data-wb-mqcount]');
     var moved=false, lastNode=null;
+    var mode=e.shiftKey?'add':(e.altKey?'sub':'replace');
+    var baseM=(st._msel||[]).slice(), baseS=st._sel;
+    st._mq=1; /* 标记框选进行中，供 Esc 取消 */
     try{ stage.setPointerCapture(e.pointerId); }catch(_){}
+    function finish(){
+      stage.removeEventListener('pointermove',mv); stage.removeEventListener('pointerup',up); stage.removeEventListener('pointercancel',up);
+      mq.classList.remove('on'); mq.hidden=true;
+      if(mqc) mqc.classList.remove('on');
+      st._mq=0; st._mqCancel=null;
+    }
+    /* Esc 取消：还原框选前的选择（finish 已移除指针监听，需自吞尾随 click 防清空） */
+    st._mqCancel=function(){
+      finish();
+      st._msel=baseM; st._sel=baseS;
+      wbApplySelClasses(box); wbRefreshFloat(box);
+      box._wbSuppressClick=1;
+    };
+    function badge(x,y,hitN,total){
+      if(!mqc) return;
+      if(mode==='add') mqc.textContent='加选 '+hitN+' · 共 '+total;
+      else if(mode==='sub') mqc.textContent='减选 '+hitN+' · 共 '+total;
+      else mqc.textContent='框选 '+hitN+' 个节点';
+      mqc.classList.add('on'); /* 先显示再测宽：display:none 时 offsetWidth=0，右边界夹不住 */
+      var bx=Math.max(4,Math.min(x,stage.clientWidth-mqc.offsetWidth-4));
+      mqc.style.left=bx+'px'; mqc.style.top=Math.max(2,y-24)+'px';
+    }
     function mv(ev){
       var cx=ev.clientX-rect.left, cy=ev.clientY-rect.top;
       if(!moved&&Math.abs(cx-sx)+Math.abs(cy-sy)<4) return;
@@ -2358,14 +2661,27 @@ function wbGestureBind(box){
         var nw=nd.offsetWidth*st.scale, nh=nd.offsetHeight*st.scale;
         if(nx<x+w&&nx+nw>x&&ny<y+h&&ny+nh>y){ hit.push(wbKeyOf(nd)); lastNode=nd; }
       }
-      st._msel=hit;
-      st._sel=lastNode?+lastNode.getAttribute('data-i'):null;
+      /* 合成选择：替换 / 加选（并集）/ 减选（差集） */
+      var sel=hit, selNo=lastNode?+lastNode.getAttribute('data-i'):null;
+      if(mode==='add'){
+        sel=baseM.slice();
+        hit.forEach(function(k){ if(sel.indexOf(k)<0) sel.push(k); });
+        if(selNo==null) selNo=baseS;
+      } else if(mode==='sub'){
+        sel=baseM.filter(function(k){ return hit.indexOf(k)<0; });
+        selNo=baseS; /* 减选不改变主镜号归属 */
+      }
+      st._msel=sel; st._sel=selNo;
+      badge(x,y,hit.length,sel.length);
       wbApplySelClasses(box); wbRefreshFloat(box);
     }
     function up(){
-      stage.removeEventListener('pointermove',mv); stage.removeEventListener('pointerup',up); stage.removeEventListener('pointercancel',up);
-      mq.classList.remove('on'); mq.hidden=true;
-      if(!moved) wbClearSel(box); /* 原地单击 = 取消选择 */
+      finish();
+      if(!moved){
+        wbClearSel(box); /* 原地单击 = 取消选择 */
+      } else if(mode==='sub'&&!st._msel.length){
+        wbClearSel(box);
+      }
       box._wbSuppressClick=1; /* 吞掉尾随 click：capture 会将其重定向到舞台，误触清空 */
     }
     stage.addEventListener('pointermove',mv); stage.addEventListener('pointerup',up); stage.addEventListener('pointercancel',up);
@@ -2459,8 +2775,18 @@ function wbKeyBind(){
       }
       e.preventDefault(); return;
     }
-    if(e.key==='Escape'){ wbClearSel(box); return; }
+    if(e.key==='Escape'){
+      /* 框选进行中 → Esc 还原框选前的选择；否则常规清空 */
+      if(box._wb._mq&&box._wb._mqCancel){ box._wb._mqCancel(); return; }
+      wbClearSel(box); return;
+    }
     if((e.ctrlKey||e.metaKey)&&(e.key==='a'||e.key==='A')){ e.preventDefault(); wbSelectAll(box); return; }
+    /* v8：删除选中镜头（数据+节点），Ctrl+Z 撤销、回收站可放回 */
+    if(e.key==='Delete'||e.key==='Backspace'){
+      var _dnos=wbSelShotNos(box);
+      if(_dnos.length){ e.preventDefault(); wbDeleteShots(box,_dnos); }
+      return;
+    }
     if(!wbSelKeys(box).length) return;
     var step=e.shiftKey?10:1, dx=0, dy=0;
     if(e.key==='ArrowLeft'){ dx=-step; e.preventDefault(); }
@@ -2485,6 +2811,51 @@ function bindWorkbench(){
   /* 画布交互 2.0：统一手势引擎（节点拖动 / 框选 / 空格·中键平移）+ 键盘快捷键 */
   wbGestureBind(box);
   wbKeyBind();
+  /* v8：小地图支持拖动平移（pointerdown 即跳转，按住拖动持续跟随；
+     旧 click 跳转分支已移除——click 会被 up 里的吞标机制吃掉，避免双跳。
+     注意：必须走 box 级委托+现取元素——renderCanvas 换 innerHTML 后小地图是全新节点，
+     绑定时捕获的引用会 detached（v7 同款坑），监听全挂死元素 */
+  (function(){
+    function miniJump(mini,ev){
+      var r=mini.getBoundingClientRect(); if(!r.width||!r.height) return;
+      var mx=(ev.clientX-r.left)/r.width, my=(ev.clientY-r.top)/r.height;
+      var wb2=worldBox(box);
+      var stage=box.querySelector('[data-wb-stage]'); if(!stage) return;
+      var sr=stage.getBoundingClientRect();
+      box._wb.tx=sr.width/2-mx*wb2.w*box._wb.scale;
+      box._wb.ty=sr.height/2-my*wb2.h*box._wb.scale;
+      applyWbTransform(box); drawMinimap(box);
+    }
+    box.addEventListener('pointerdown',function(e){
+      var mini=e.target&&e.target.closest?e.target.closest('[data-wb-mini]'):null;
+      if(!mini) return;
+      if(e.button===2) return; /* 右键放过 */
+      try{ mini.setPointerCapture(e.pointerId); }catch(_){}
+      miniJump(mini,e);
+      mini.classList.add('dragging');
+      function mv(ev){ miniJump(mini,ev); }
+      function up(){
+        mini.removeEventListener('pointermove',mv); mini.removeEventListener('pointerup',up); mini.removeEventListener('pointercancel',up);
+        mini.classList.remove('dragging');
+        box._wbSuppressClick=1; /* 吞掉尾随 click，防误触其它分支 */
+      }
+      mini.addEventListener('pointermove',mv); mini.addEventListener('pointerup',up); mini.addEventListener('pointercancel',up);
+      e.preventDefault();
+    });
+  })();
+  /* v8：窗口尺寸变化 → 处于「适应」档则重新适应，否则钳制 tx/ty 防内容跑丢 */
+  (function(){
+    var rzT=null;
+    window.addEventListener('resize',function(){
+      if(rzT) clearTimeout(rzT);
+      rzT=setTimeout(function(){
+        var b=document.getElementById('panelCanvas');
+        if(!b||!b._wb||!b.offsetParent) return;
+        var fit=wbFitScale(b);
+        if(fit!=null&&Math.abs(b._wb.scale-fit)<0.06) wbFitView(b); else wbClampView(b);
+      },160);
+    });
+  })();
   box.addEventListener('wheel',function(e){
     var st=box._wb; if(!st) return;
     if(e.target.closest('.wb-assets')) return;
@@ -2496,25 +2867,34 @@ function bindWorkbench(){
     st.scale=ns; st.tx=mx-wx*ns; st.ty=my-wy*ns;
     applyWbTransform(box); drawMinimap(box);
   },{passive:false});
-  /* 双击内联编辑台词 */
+  /* 双击内联编辑台词；双击空白 = 适应视图（v8） */
   box.addEventListener('dblclick',function(e){
     var ed=e.target.closest?e.target.closest('[data-edit="line"]'):null;
-    if(!ed) return;
-    var no=+ed.getAttribute('data-i'); var s=state.shots[no-1]; if(!s) return;
-    pushHistory();
-    ed.setAttribute('contenteditable','true');
-    ed.focus();
-    document.execCommand('selectAll',false,null);
-    function commit(){
-      ed.removeAttribute('contenteditable');
-      var newLine=ed.textContent.trim();
-      if(newLine&&newLine!==s.line){ s.line=newLine; s.subtitle=cutLine(newLine,26); }
-      ed.removeEventListener('blur',commit);
-      ed.removeEventListener('keydown',onkey);
+    if(ed){
+      var no=+ed.getAttribute('data-i'); var s=state.shots[no-1]; if(!s) return;
+      pushHistory();
+      ed.setAttribute('contenteditable','true');
+      ed.focus();
+      document.execCommand('selectAll',false,null);
+      function commit(){
+        ed.removeAttribute('contenteditable');
+        var newLine=ed.textContent.trim();
+        if(newLine&&newLine!==s.line){ s.line=newLine; s.subtitle=cutLine(newLine,26); }
+        ed.removeEventListener('blur',commit);
+        ed.removeEventListener('keydown',onkey);
+      }
+      function onkey(ev){ if(ev.key==='Escape'){ ed.textContent=s.line; ed.removeAttribute('contenteditable'); } if(ev.key==='Enter'){ ev.preventDefault(); ed.blur(); } }
+      ed.addEventListener('blur',commit);
+      ed.addEventListener('keydown',onkey);
+      return;
     }
-    function onkey(ev){ if(ev.key==='Escape'){ ed.textContent=s.line; ed.removeAttribute('contenteditable'); } if(ev.key==='Enter'){ ev.preventDefault(); ed.blur(); } }
-    ed.addEventListener('blur',commit);
-    ed.addEventListener('keydown',onkey);
+    /* v8：双击空白（舞台背景/世界底）→ 适应全部内容，与「适应」按钮等价 */
+    var t2=e.target;
+    if(t2.closest&&!t2.closest('.wb-node')&&!t2.closest('.wb-float')&&!t2.closest('.wb-mini')
+      &&!t2.closest('.wb-top')&&!t2.closest('.wb-zoombar')&&!t2.closest('.wb-legend')
+      &&!t2.closest('.wb-trash')&&!t2.closest('.wb-assets')){
+      wbFitView(box);
+    }
   });
   box.addEventListener('click',function(e){
     var t=e.target;
@@ -2532,11 +2912,31 @@ function bindWorkbench(){
       (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(function(){ toast('整集分镜稿已复制（'+txt.length+'字）'); },function(){ toast(txt); });
       return;
     }
-    /* 缩放（以舞台中心为锚） */
+    /* 缩放（以舞台中心为锚）；点百分比数字 = 回到 100% */
     if(t.closest&&t.closest('[data-wb-z]')){
-      var z=t.closest('[data-wb-z]').getAttribute('data-wb-z');
-      wbZoomAt(box, z==='+'?1.15:0.87); return;
+      var zb=t.closest('[data-wb-z]');
+      var z=zb.getAttribute('data-wb-z');
+      if(z==='100'){ wbZoomAt(box, 1/box._wb.scale); toast('缩放已回到 100%'); }
+      else wbZoomAt(box, z==='+'?1.15:0.87);
+      return;
     }
+    /* v8：AI 自动排版（DeepSeek 管叙事分组，几何坐标本地实算） */
+    if(t.closest&&t.closest('[data-wb-ailayout]')){ aiLayout(); return; }
+    /* v8：回收站面板开关 */
+    if(t.closest&&t.closest('[data-wb-trashbtn]')){
+      var tpnl=box.querySelector('[data-wb-trash]');
+      if(tpnl){
+        tpnl.hidden=!tpnl.hidden;
+        if(tpnl.hidden) tpnl.innerHTML=''; else wbRefreshTrash(box);
+      }
+      return;
+    }
+    /* v8：回收站放回（被删脚本镜头重现到画布） */
+    var tb=t.closest?t.closest('[data-trashback]'):null;
+    if(tb){ wbRestoreShot(box,+tb.getAttribute('data-trashback')); return; }
+    /* v8：节点头删除按钮（删这个镜头，Ctrl+Z 撤销） */
+    var ndl=t.closest?t.closest('[data-nodedel]'):null;
+    if(ndl){ wbDeleteShots(box,[+ndl.getAttribute('data-nodedel')]); return; }
     /* 适应：按内容包围盒实算缩放与居中 */
     if(t.closest&&t.closest('[data-wb-fit]')){ wbFitView(box); return; }
     /* 重排：清空自由布局，恢复默认列布局并适应视图 */
@@ -2621,6 +3021,8 @@ function bindWorkbench(){
         }
         return;
       }
+      /* v8：删除（单选=本镜，多选=批量所选镜号） */
+      if(act==='del'){ wbDeleteShots(box,nos); return; }
       /* 替代方案：先数够不够额度，不够就不进历史栈 */
       if(act==='alt'){
         var eligible=0;
@@ -2655,19 +3057,7 @@ function bindWorkbench(){
     /* 多选对齐工具（左/中/右/纵向等距） */
     var fa=t.closest?t.closest('[data-fbal]'):null;
     if(fa){ wbAlign(box, fa.getAttribute('data-fbal')); return; }
-    /* DS-24: minimap 点击 */
-    var mm=t.closest?t.closest('[data-wb-mini]'):null;
-    if(mm){
-      var rect=mm.getBoundingClientRect();
-      var mx=(e.clientX-rect.left)/rect.width;
-      var my=(e.clientY-rect.top)/rect.height;
-      var wb2=worldBox(box);
-      var stage=box.querySelector('[data-wb-stage]'); var sr=stage.getBoundingClientRect();
-      box._wb.tx=sr.width/2-mx*wb2.w*box._wb.scale;
-      box._wb.ty=sr.height/2-my*wb2.h*box._wb.scale;
-      applyWbTransform(box); drawMinimap(box);
-      return;
-    }
+    /* DS-24→v8：minimap 已改为 pointerdown 拖动平移（见 bindWorkbench），click 分支移除 */
     /* DS-23: 节点选中 → 浮条（pointerdown 已覆盖主流路径；此处兜底 data-edit 等免手势区域） */
     var node=t.closest?t.closest('.wb-node'):null;
     if(node){
@@ -2681,8 +3071,12 @@ function bindWorkbench(){
       wbRefreshFloat(box);
       return;
     }
-    /* 点击空白取消选中 + 收浮条（与框选 pointerup 的清除幂等） */
-    if(!t.closest('.wb-node')&&!t.closest('.wb-float')) wbClearSel(box);
+    /* 点击空白取消选中 + 收浮条 + 收起回收站（与框选 pointerup 的清除幂等） */
+    if(!t.closest('.wb-node')&&!t.closest('.wb-float')&&!t.closest('.wb-trash')){
+      wbClearSel(box);
+      var tp3=box.querySelector('[data-wb-trash]');
+      if(tp3&&!tp3.hidden){ tp3.hidden=true; tp3.innerHTML=''; }
+    }
   });
   /* 移动端触控：空白处单指平移 / 双指缩放；节点主体上的触摸交给统一手势（单指拖节点） */
   box.addEventListener('touchstart',function(e){
@@ -2690,7 +3084,7 @@ function bindWorkbench(){
     /* 节点主体（非按钮/可编辑/折叠）→ 交给 pointer 手势拖节点 */
     var _nt=e.target.closest?e.target.closest('.wb-node'):null;
     if(_nt&&!e.target.closest('button,[data-edit="line"],summary,.wbn-del-alt')) return;
-    if(e.target.closest('.wb-assets')||e.target.closest('.wbn-actions')||e.target.closest('.cv-agbody')||e.target.closest('.wb-nodehead')||e.target.closest('.wbn-line')||e.target.closest('.wb-btn')||e.target.closest('.wb-zbtn')||e.target.closest('.wb-rows button')||e.target.closest('.wb-float')) return;
+    if(e.target.closest('.wb-assets')||e.target.closest('.wbn-actions')||e.target.closest('.cv-agbody')||e.target.closest('.wb-nodehead')||e.target.closest('.wbn-line')||e.target.closest('.wb-btn')||e.target.closest('.wb-zbtn')||e.target.closest('.wb-rows button')||e.target.closest('.wb-float')||e.target.closest('.wb-mini')||e.target.closest('.wb-trash')) return;
     var stage=box.querySelector('[data-wb-stage]');
     if(e.touches.length===1){
       var t=e.touches[0];
@@ -3344,7 +3738,8 @@ function aiGenerate(){
 /* ---------- DS-25: undo 历史栈 ---------- */
 function pushHistory(){
   try{
-    state.history.push(JSON.stringify(state.shots));
+    /* v8：撤销需同时还原回收站——否则「删除→Ctrl+Z」镜头会同时留在 shots 与 trash，再「放回」即重复 */
+    state.history.push(JSON.stringify({shots:state.shots,trash:state.trash||[]}));
     if(state.history.length>20) state.history.shift();
   }catch(_){}
 }
@@ -3352,7 +3747,9 @@ function undo(){
   if(!state.history.length){ toast('没有可撤销的操作'); return; }
   var prev=state.history.pop();
   try{
-    state.shots=JSON.parse(prev);
+    var obj=JSON.parse(prev);
+    if(obj&&obj.shots){ state.shots=obj.shots; state.trash=obj.trash||[]; }
+    else state.shots=obj; /* 兼容旧格式（纯 shots 数组快照） */
     renderAll();
     toast('已撤销上一步');
   }catch(_){}
