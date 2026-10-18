@@ -1,0 +1,2569 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="秒视 AI · 漫剧分镜生成器：粘贴一段小说，自动剔水、提炼看点、拆成逐镜分镜，每镜同时产出图提示词与视频提示词，复制到即梦 / 可灵 / Seedance 即可出片。纯前端运行，本地规则模式免费不联网。">
+<meta name="theme-color" content="#0B0D12">
+<meta property="og:type" content="website">
+<meta property="og:title" content="秒视 AI · 漫剧分镜生成器">
+<meta property="og:description" content="贴一段小说，拿到能直接出片的漫剧分镜提示词。自动剔水、提炼看点、双轨提示词，先图后动。">
+<title>秒视 AI · 漫剧分镜生成器</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230E0F14'/%3E%3Cpath d='M12 11l10 5-10 5z' fill='%23FF4D6D'/%3E%3Crect x='8' y='12' width='3' height='8' rx='1.5' fill='%23fff'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --ink:#EDEEF2; --body:#B6BAC6; --muted:#8A8FA0; --line:#2A3040;
+    --bg:#0B0D12; --card:#151A24; --panel:#1C1F2A; --accent:#FF4D6D; --accent-strong:#D62E52; --accent-soft:#3A1B26;
+    --teal:#7BD3C0; --teal-soft:#16282A;
+    --err:#FF5A5A; --okbg:#16282A; --wb-bg:#0B0D12; --wb-node:#151A24; --wb-border:#2A3040; --wb-assets:#121722;
+    --beat-hook:#FF5D6F; --beat-conf:#FF9E5C; --beat-peak:#E0455A; --beat-turn:#D9A03C; --beat-calm:#9AA3B8; --beat-hook2:#FFE0E8;
+    /* emilkowalski/skills 动效 token：强 ease-out + 强 ease-in-out + 抽屉曲线 */
+    --ease-out:cubic-bezier(0.23,1,0.32,1);      /* 进入/退出：先快后慢 */
+    --ease-io:cubic-bezier(0.77,0,0.175,1);      /* 屏上移动/变形 */
+    --ease-drawer:cubic-bezier(0.32,0.72,0,1);   /* iOS 式抽屉 */
+    --ease-hover:ease;                            /* hover/颜色变化 */
+    --press:.16s var(--ease-out);                 /* 按钮按压 100-160ms */
+    --lift:.24s var(--ease-out);                  /* 卡片悬浮 */
+    --pop:.26s var(--ease-out);                   /* toast 弹入 */
+    --shimmer-ink:rgba(182,186,198,.9); --shimmer-shine:rgba(255,255,255,.85);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{font-family:"Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;font-size:16px;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;touch-action:manipulation;text-size-adjust:100%;-webkit-text-size-adjust:100%}
+  .serif,h1,h2.sec-h,.studio .st-h,.pricing h2,.hero h1{font-family:"Noto Serif SC","Noto Sans SC",serif;letter-spacing:-.005em}
+  .num,td.dur,.shot .no,.lnum,.wb-zoom,.cv-agnum{font-variant-numeric:tabular-nums;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+  .wrap{width:100%;max-width:1080px;margin:0 auto;padding:0 16px}
+  ::selection{background:var(--accent);color:#fff}
+  /* ===== nav ===== */
+  nav{position:sticky;top:0;background:rgba(14,15,20,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);z-index:20}
+  .nav{display:flex;align-items:center;justify-content:space-between;padding:13px 0}
+  .brand{display:flex;align-items:center;gap:9px;font-weight:900;font-size:16.5px;color:var(--ink);letter-spacing:.01em;cursor:pointer;user-select:none;width:max-content}
+  .brand .logo{width:30px;height:30px;border-radius:8px;background:var(--ink);display:inline-flex;align-items:center;justify-content:center;flex:none;transition:transform .2s var(--ease-out), box-shadow .2s var(--ease-out)}
+  .brand .logo svg{width:15px;height:15px}
+  .brand small{font-weight:500;font-size:12px;color:var(--muted);margin-left:2px}
+  @media(hover:hover) and (pointer:fine){
+    .brand:hover .logo{transform:scale(1.08);box-shadow:0 0 0 3px var(--accent-soft)}
+  }
+  .brand:active .logo{transform:scale(.97)}
+  @media(prefers-reduced-motion:reduce){.brand .logo{transition:none}}
+  .nav .links{display:flex;gap:18px;align-items:center}
+  .nav .links a{font-size:14px;color:var(--body);text-decoration:none;font-weight:500;cursor:pointer}
+  .nav .links a:hover{color:var(--accent)}
+  @media(max-width:640px){.nav .links a.ntab{display:inline-block}}
+  /* ===== hero ===== */
+  .hero{position:relative;padding:50px 0 38px;text-align:center;overflow:hidden}
+  .hero .eyebrow{display:inline-block;font-size:13px;color:var(--teal);font-weight:700;letter-spacing:.05em;margin-bottom:18px;padding:5px 14px;background:var(--teal-soft);border-radius:20px}
+  .hero h1{font-size:clamp(30px,7vw,54px);font-weight:900;line-height:1.12;letter-spacing:-.01em;margin-bottom:18px;color:var(--ink)}
+  .hero p.lead{font-size:clamp(15px,2.6vw,18px);color:var(--body);max-width:680px;margin:0 auto}
+  .hero .ctas{display:flex;gap:12px;justify-content:center;margin-top:26px;flex-wrap:wrap}
+  .btn{display:inline-flex;align-items:center;gap:8px;border:none;border-radius:12px;padding:14px 26px;font-size:16px;font-weight:700;cursor:pointer}
+  .btn.primary{background:var(--accent-strong);color:#fff}
+  .btn.ghost{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+  .hero .hint{font-size:13px;color:var(--muted);margin-top:16px}
+  .herolink{color:var(--muted);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:1px;transition:color var(--press),border-color var(--press)}
+  @media(hover:hover) and (pointer:fine){.herolink:hover{color:var(--teal);border-color:var(--teal)}}
+  .frames{position:absolute;inset:0;pointer-events:none;opacity:.5}
+  .frames .f{position:absolute;border:1px solid var(--line);border-radius:8px;background:var(--card);box-shadow:0 2px 10px rgba(0,0,0,.15);padding:10px;opacity:.65}
+  .frames .f .recdot{width:6px;height:6px;border-radius:50%;background:var(--accent-strong);display:inline-block;margin-right:5px;vertical-align:1px}
+  .frames .f .flabel{font-size:11px;color:var(--body);font-weight:700}
+  .frames .f .fcam{font-size:10px;color:var(--teal);margin-top:3px}
+  .frames .f .fshot{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4}
+  @media(max-width:640px){.frames{display:none}}
+  @media(min-width:860px){
+    .frames .f1{width:150px;height:96px;top:44px;left:6%;transform:rotate(-6deg)}
+    .frames .f2{width:170px;height:108px;top:118px;right:7%;transform:rotate(5deg)}
+    .frames .f3{width:120px;height:80px;bottom:28px;left:12%;transform:rotate(7deg)}
+    .frames .f4{width:130px;height:86px;bottom:56px;right:12%;transform:rotate(-5deg)}
+  }
+  /* ===== studio ===== */
+  .studio{background:var(--panel);border-radius:22px;padding:30px 22px;margin:10px 0 52px;color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.28)}
+  /* ===== AI API 配置面板 ===== */
+  .api-card{background:var(--card);border:1px solid var(--line);border-radius:16px;margin:0 0 22px;overflow:hidden}
+  .api-card .api-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;cursor:pointer;border-bottom:1px solid var(--line);user-select:none}
+  .api-card .api-title{display:flex;align-items:center;gap:10px;font-weight:800;font-size:16px;color:var(--ink)}
+  .api-card .api-badge{font-size:11px;font-weight:800;color:#0E0F14;background:var(--teal);border-radius:6px;padding:2px 8px;letter-spacing:.03em}
+  .api-card .api-sub{font-size:13px;color:var(--muted);margin-top:5px;line-height:1.5}
+  .api-card .api-chev{transition:transform .25s ease;color:var(--muted);flex:0 0 auto}
+  .api-card.closed .api-chev{transform:rotate(-90deg)}
+  .api-card .api-body{padding:16px 18px;display:grid;gap:14px}
+  .api-card.closed .api-body{display:none}
+  .api-field{display:grid;gap:6px}
+  .api-field label{font-size:12.5px;font-weight:700;color:var(--body);display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .api-field .f-opt{font-weight:500;color:var(--muted);font-size:12px}
+  .api-field input,.api-field textarea{width:100%;box-sizing:border-box;border:1.5px solid var(--line);border-radius:10px;padding:11px 13px;font-size:16px;color:var(--ink);background:var(--bg);font-family:inherit;min-height:46px;transition:border-color var(--press), box-shadow var(--press), background var(--press)}
+  .api-field input:focus,.api-field textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .api-field textarea{min-height:150px;resize:vertical;line-height:1.6;font-size:16px}
+  .api-field .hint{font-size:12.5px;color:var(--muted);line-height:1.5}
+  .api-row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .api-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .api-btn{min-height:48px;padding:0 22px;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;border:none}
+  .api-btn.ai{background:var(--accent-strong);color:#fff}
+  .api-btn.local{background:var(--bg);color:var(--ink);border:1.5px solid var(--line)}
+  .api-btn:disabled{opacity:.6;cursor:wait;transition:opacity var(--press)}
+  .api-status{font-size:13px;color:var(--muted);flex:1;min-width:220px;line-height:1.5;transition:color var(--press)}
+  .api-status.err{color:#FF5A5A}
+  .api-status.ok{color:var(--teal)}
+  @media(max-width:640px){.api-row2{grid-template-columns:1fr}}
+  .studio .st-h{display:flex;align-items:center;gap:10px;font-size:20px;font-weight:900;margin-bottom:4px}
+  .studio .st-h .dot{width:9px;height:9px;border-radius:50%;background:var(--accent)}
+  .studio .st-sub{font-size:13.5px;color:rgba(255,255,255,.66);margin-bottom:22px}
+  .panel{background:var(--card);color:var(--ink);border-radius:16px;padding:18px}
+  .label{display:flex;align-items:center;justify-content:space-between;font-size:13.5px;font-weight:700;color:var(--ink);margin-bottom:8px}
+  .label .count{font-weight:500;color:var(--muted);font-size:12.5px}
+  textarea{width:100%;min-height:168px;border:1.5px solid var(--line);border-radius:12px;padding:13px 14px;font-size:16px;line-height:1.7;color:var(--ink);background:var(--card);font-family:inherit;resize:vertical;transition:border-color var(--press), box-shadow var(--press), background var(--press)}
+  textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  textarea::placeholder{color:#B6BDCC}
+  .examples{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .ex{font-size:12.5px;color:var(--teal);background:var(--teal-soft);border:1px solid rgba(123,211,192,.2);border-radius:16px;padding:0 14px;min-height:36px;cursor:pointer;font-weight:600}
+  .controls{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+  @media(min-width:720px){.controls{grid-template-columns:1fr 1fr 1fr 1fr}}
+  .ctl label{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:6px}
+  .ctl select{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:11px 12px;font-size:15px;color:var(--ink);background:var(--card);font-family:inherit;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%237A8299' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;transition:border-color var(--press), box-shadow var(--press), background var(--press)}
+  .ctl select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .gen-row{display:flex;gap:12px;align-items:center;margin-top:18px;flex-wrap:wrap}
+  .gen-btn{background:var(--accent-strong);color:#fff;border:none;border-radius:12px;padding:15px 30px;font-size:16px;font-weight:800;cursor:pointer;flex:1;min-height:52px}
+  .gen-btn:disabled{opacity:.55;cursor:wait}
+  .gen-row .meta{font-size:12.5px;color:var(--muted);text-align:center}
+  /* ===== output ===== */
+  .output{display:none;margin-top:18px}
+  .output.show{display:block}
+  .out-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+  .out-head h3{font-size:16px;font-weight:800;color:var(--ink)}
+  .out-head .hint{font-size:12.5px;color:var(--muted)}
+  .out-actions{display:flex;gap:8px;flex-wrap:wrap}
+  .minibtn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:0 16px;min-height:44px;font-size:13.5px;font-weight:600;cursor:pointer}
+  .minibtn.accent{background:var(--accent-strong);border-color:var(--accent-strong);color:#fff}
+  .out-tabs{display:flex;gap:8px;flex-wrap:nowrap;margin-bottom:16px;overflow-x:auto;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;scrollbar-width:none;position:sticky;top:0;z-index:5;background:var(--card);padding:8px 0;
+    -webkit-mask-image:linear-gradient(90deg,#000 92%,transparent 100%);mask-image:linear-gradient(90deg,#000 92%,transparent 100%)}
+  .out-tabs::-webkit-scrollbar{display:none}
+  .otab{border:1px solid var(--line);background:var(--card);padding:0 16px;min-height:44px;border-radius:10px;font-size:14px;font-weight:600;color:var(--body);cursor:pointer;flex:0 0 auto;scroll-snap-align:start;white-space:nowrap}
+  .otab.on{background:var(--accent-strong);color:#fff;border-color:var(--ink)}
+  .out-panel{display:none}
+  .out-panel.on{display:block}
+  /* shot card */
+  .shot{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px}
+  .shot .head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .shot .no{font-size:12px;font-weight:800;color:#fff;background:var(--accent-strong);border-radius:7px;padding:3px 9px}
+  .shot .beat{font-size:12px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:14px;padding:2px 10px}
+  .shot .cam{font-size:12px;color:var(--teal);background:var(--teal-soft);border-radius:14px;padding:2px 10px}
+  .shot .dur{font-size:12px;color:var(--muted);margin-left:auto}
+  .shot .row{font-size:14px;color:var(--body);line-height:1.7;margin-bottom:7px}
+  .shot .row b{color:var(--ink);font-weight:700}
+  .shot .line{font-size:13.5px;color:var(--body);background:var(--panel);border-radius:10px;padding:8px 12px;line-height:1.6;border:1px solid var(--line)}
+  .shot .line b{color:var(--teal)}
+  .shot .ops{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .shot .ops .op{border:1px solid var(--line);background:var(--card);color:var(--body);border-radius:9px;padding:0 14px;min-height:38px;font-size:12.5px;font-weight:600;cursor:pointer}
+  .shot .ops .op:hover{border-color:var(--teal);color:var(--teal)}
+  .prompt-block{background:var(--panel);color:var(--body);border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-bottom:11px;font-size:13.5px;line-height:1.75}
+  .panel-intro{font-size:13px;color:var(--body);background:rgba(123,211,192,.06);border:1px solid rgba(123,211,192,.22);border-radius:10px;padding:10px 13px;margin-bottom:12px;line-height:1.7}
+  .panel-intro b{color:var(--teal);font-weight:600}
+  .prompt-block .pt{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
+  .prompt-block .pt b{font-size:13px;color:var(--accent)}
+  .prompt-block .cp{font-size:12px;color:var(--accent);background:var(--accent-soft);border:1px solid rgba(255,77,109,.25);border-radius:7px;padding:6px 12px;cursor:pointer;font-weight:600;flex:none;min-height:32px}
+  .copyline{background:var(--teal-soft);color:#cfe6dd;border:1px solid rgba(123,211,192,.18);border-radius:10px;padding:10px 13px;margin-bottom:8px;font-size:14px;line-height:1.7}
+  .copyline .t{font-size:12px;font-weight:700;color:var(--teal);letter-spacing:.03em;margin-bottom:2px}
+  .tips{font-size:13px;color:var(--muted);margin-top:12px;line-height:1.7}
+  .tips b{color:var(--ink)}
+  /* roles & scenes */
+  .role-grid{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:16px}
+  @media(min-width:640px){.role-grid{grid-template-columns:1fr 1fr}}
+  .rolecard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .sheets{display:grid;grid-template-columns:1fr;gap:12px}
+  @media(min-width:768px){.sheets{grid-template-columns:1fr 1fr}}
+  .rolesheet{min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+  .rshead{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .rshead .rname{font-size:15px;font-weight:600;color:var(--ink)}
+  .rshead .rtag{font-size:12px;color:var(--teal);background:var(--teal-soft);border-radius:999px;padding:2px 10px}
+  .rsprompt{margin:0 0 10px;font-size:14px;line-height:1.6;color:var(--body);
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .rsfoot{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .rstip{font-size:13px;line-height:1.5;color:var(--muted);min-width:0}
+  .btn.mini{min-height:44px;padding:0 14px;font-size:14px;white-space:nowrap;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:10px;font-weight:600;cursor:pointer}
+  .lensbox{display:grid;grid-template-columns:1fr;gap:10px}
+  .lens{min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;transition:border-color .25s ease,box-shadow .25s ease}
+  .lens.open{border-color:rgba(123,211,192,.42);box-shadow:0 6px 20px rgba(0,0,0,.4)}
+  .lenshead{width:100%;min-height:56px;display:flex;align-items:center;gap:10px;padding:12px 14px;background:none;border:0;color:inherit;font:inherit;text-align:left;cursor:pointer}
+  .lnum{flex:0 0 auto;min-width:22px;font-size:14px;color:var(--teal);opacity:.75}
+  .lname{flex:0 0 auto;font-size:15px;font-weight:600;color:var(--ink)}
+  .lshot{flex:1 1 auto;min-width:0;font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .chev{flex:0 0 auto;color:var(--muted);transition:transform .3s ease-out}
+  .lens.open .chev{transform:rotate(180deg);color:var(--teal)}
+  .lensbody{display:grid;grid-template-rows:0fr;transition:grid-template-rows .32s ease-out}
+  .lens.open .lensbody{grid-template-rows:1fr}
+  .linner{overflow:hidden;min-height:0}
+  .lpad{padding:0 14px 14px;border-top:1px solid var(--line);padding-top:12px}
+  .luse{margin:0 0 8px;font-size:14px;line-height:1.6;color:var(--muted)}
+  .luse b{color:var(--ink);font-weight:600}
+  .lprompt{margin:0 0 12px;font-size:14px;line-height:1.7;color:var(--body)}
+  @media(min-width:768px){.lshot{font-size:14px}.lname{min-width:96px}}
+  @media(prefers-reduced-motion:reduce){.lensbody,.chev{transition:none}}
+  /* ===== 视觉动效（DeepSeek D：入场编排 / hover 反馈 / 生成进度） ===== */
+  .anim-in{animation:riseIn .4s var(--ease-out) backwards;animation-delay:calc(var(--i,0)*34ms)}
+  @keyframes riseIn{from{opacity:0;transform:translateY(12px) scale(.995)}to{opacity:1;transform:none}}
+  .shot,.point,.rolesheet{transition:transform var(--lift),box-shadow var(--lift),border-color var(--press)}
+  .shot:hover,.point:hover,.rolesheet:hover{transform:translateY(-2px);border-color:rgba(255,77,109,.35);box-shadow:0 10px 26px rgba(0,0,0,.3)}
+  .shot:active,.point:active,.rolesheet:active{transform:translateY(0) scale(.99);box-shadow:0 3px 10px rgba(0,0,0,.18);transition-duration:.08s}
+  .gen-btn.loading::after{content:"";position:absolute;left:0;bottom:0;width:100%;height:3px;top:auto;background:var(--teal);transform-origin:left;animation:genBar 2.2s ease-in-out infinite}
+  @keyframes genBar{0%{transform:scaleX(0)}55%{transform:scaleX(.72)}100%{transform:scaleX(1)}}
+  @media(prefers-reduced-motion:reduce){.anim-in,.wb-node{animation:none;opacity:1;transform:none}.shot,.point,.rolesheet{transition:none}.shot:hover,.point:hover,.rolesheet:hover,.shot:active,.point:active,.rolesheet:active{transform:none;box-shadow:none}.gen-btn.loading::after{animation:none}.gen-btn.loading{animation:none}.nav .links a::after{transition:none}.toast,.api-chev,.btn,.minibtn,.gen-btn,.otab,.op,.ex,.chip,.cp{transition:none}.wb-node:hover,.wb-node.dragging{transform:none}.btn:active,.minibtn:active,.gen-btn:active,.op:active,.ex:active,.chip:active,.wb-btn:active,.wb-zbtn:active,.api-btn:active,.otab:active,.cp:active{transform:none}.ck path{animation:none;stroke-dashoffset:0}}
+  /* ===== 画布工作区（提示词脚本管道 · 可平移缩放 · 节点连线） ===== */
+  .cv-empty{margin:0;padding:28px 16px;text-align:center;font-size:14px;line-height:1.7;color:var(--muted);
+    background:var(--card);border:1px dashed var(--line);border-radius:14px}
+  /* ===== 画布工作区（TapNow Tapflow 风格 · 蓝黑轴） ===== */
+  .wb{position:relative;height:74vh;min-height:440px;background:var(--wb-bg);border:1px solid var(--wb-border);border-radius:14px;overflow:hidden;touch-action:pan-x pan-y}
+  .wb-stage{position:absolute;inset:0;cursor:grab;
+    background-image:radial-gradient(circle,#1a1f2e 1px,transparent 1.2px);background-size:26px 26px}
+  .wb-stage:active{cursor:grabbing}
+  .wb-world{position:absolute;top:0;left:0;transform-origin:0 0}
+  .wb-links{position:absolute;top:0;left:0;overflow:visible;pointer-events:none}
+  /* 三种节点类型（纯文本提示词卡片，无媒体占位） */
+  .wb-node{position:absolute;width:264px;background:var(--wb-node);border:1px solid var(--wb-border);border-radius:12px;padding:10px 12px;box-shadow:0 6px 18px rgba(0,0,0,.4)}
+  .wb-node.sel{border-color:var(--accent);border-width:1.5px}
+  .wb-node[data-st="done"]{border-color:rgba(123,211,192,.45)}
+  .wb-nodehead{display:flex;align-items:center;gap:6px;margin-bottom:6px;font-size:12px;cursor:grab;user-select:none;min-height:26px}
+  .wb-nodehead:active{cursor:grabbing}
+  .wbn-rec{width:6px;height:6px;border-radius:50%;background:var(--accent-strong);display:inline-block;flex:none}
+  .wbn-no{color:var(--ink);font-weight:700}
+  .wbn-beat{font-size:10px;color:var(--teal);background:var(--teal-soft);border-radius:8px;padding:1px 6px}
+  .wbn-cam{color:var(--muted);font-size:11px;margin-left:auto}
+  /* 脚本节点主体 */
+  .wbn-summary{font-size:12.5px;color:var(--body);line-height:1.6;margin:4px 0;word-break:break-word}
+  .wbn-line{font-size:12.5px;color:var(--teal);background:var(--teal-soft);border-radius:6px;padding:5px 8px;margin-top:6px;line-height:1.55;word-break:break-word}
+  .wbn-line[contenteditable="true"]{outline:1.5px solid var(--accent);cursor:text}
+  /* 静帧/视频提示词节点 */
+  .wbn-title{font-size:11px;font-weight:800;letter-spacing:.02em;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+  .wb-node[data-type="image"] .wbn-title{color:var(--teal)}
+  .wb-node[data-type="video"] .wbn-title{color:var(--accent)}
+  .wbn-meta{font-size:10.5px;color:var(--muted);margin-bottom:7px;display:flex;gap:5px;flex-wrap:wrap}
+  .wbn-meta span{background:var(--panel);border:1px solid var(--wb-border);border-radius:6px;padding:1px 7px;white-space:nowrap}
+  .wbn-prompt{font-size:12px;line-height:1.7;color:var(--body);word-break:break-word;white-space:pre-wrap}
+  .wbn-actions{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
+  .wbn-actions button{flex:1 1 auto;min-height:36px;font-size:12px;border-radius:8px;border:1px solid var(--wb-border);background:var(--panel);color:var(--ink);cursor:pointer;padding:0 10px;white-space:nowrap}
+  .wbn-actions button.copyimg{color:var(--teal);border-color:rgba(123,211,192,.35)}
+  .wbn-actions button.copyvid{color:var(--accent);border-color:rgba(255,77,109,.35)}
+  .wbn-actions button.copyall{background:var(--accent-strong);border-color:var(--accent-strong);color:#fff;font-weight:700}
+  @media(max-width:767px){.wbn-actions button{min-height:44px}}
+  /* 端口 */
+  .wb-port{position:absolute;width:10px;height:10px;border-radius:50%;background:var(--teal);border:2px solid var(--wb-bg);z-index:3;transition:transform .15s ease}
+  .wb-port:hover{transform:scale(1.4)}
+  .wb-port.in{left:-6px;top:50%}
+  .wb-port.out{right:-6px;top:50%}
+  @media(max-width:767px){.wb-port{display:none}}
+  /* 顶部工具栏 */
+  .wb-top{position:absolute;top:10px;left:10px;right:10px;z-index:10;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .wb-btn{min-height:44px;padding:0 14px;font-size:13px;border-radius:999px;background:rgba(123,211,192,.1);color:var(--teal);border:1px solid rgba(123,211,192,.25);cursor:pointer}
+  .wb-btn.primary{background:var(--accent-strong);color:#fff;border-color:var(--accent-strong);font-weight:700}
+  .wb-tip{font-size:12px;color:var(--muted);flex:1;min-width:0;line-height:1.5}
+  .wb-zoom{font-size:12px;color:var(--body)}
+  /* 行折叠器 */
+  .wb-rows{display:flex;gap:4px;background:rgba(0,0,0,.3);border-radius:999px;padding:3px}
+  .wb-rows button{min-height:36px;padding:0 10px;font-size:12px;border:none;background:transparent;color:var(--muted);border-radius:999px;cursor:pointer}
+  .wb-rows button.on{background:var(--teal);color:#0E0F14;font-weight:700}
+  /* 选中浮条 */
+  .wb-float{position:absolute;z-index:15;display:flex;gap:4px;background:var(--panel);border:1px solid var(--wb-border);border-radius:10px;padding:4px;box-shadow:0 8px 24px rgba(0,0,0,.5);transform:translateY(-6px);transition:opacity .18s ease,transform .18s cubic-bezier(.22,.61,.36,1)}
+  .wb-float button{min-height:36px;padding:0 10px;font-size:12px;border:none;background:transparent;color:var(--body);border-radius:8px;cursor:pointer;white-space:nowrap}
+  .wb-float button:hover{background:rgba(123,211,192,.12);color:var(--teal)}
+  /* minimap */
+  .wb-mini{position:absolute;right:10px;bottom:56px;z-index:10;width:160px;height:90px;background:var(--wb-bg);border:1px solid var(--wb-border);border-radius:8px;overflow:hidden;cursor:pointer}
+  .wb-mini canvas{width:100%;height:100%;display:block}
+  /* 变体节点（替代方案分支） */
+  .wb-node.alt{border-color:var(--accent);border-style:dashed;width:180px}
+  .wb-node.alt .wb-stbadge{color:var(--accent)}
+  .wb-node.alt .wbn-alt-badge{position:absolute;top:6px;left:8px;font-size:10px;font-weight:800;color:var(--accent);background:var(--accent-soft);border-radius:6px;padding:1px 6px}
+  .wb-node.alt.collapsed{width:70px;min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer}
+  .wb-node.alt.collapsed .wbn-body,.wb-node.alt.collapsed .wb-port{display:none}
+  .wb-node.alt.collapsed .wbn-alt-badge{position:static}
+  .wb-node.alt.collapsed .wbn-collapse-hint{font-size:10px;color:var(--accent);writing-mode:vertical-lr;letter-spacing:2px}
+  /* 比较模式：非聚焦节点仅轻微降透明，保证可读（DS评审：.35 太暗失效） */
+  .wb-world.compare .wb-node:not(.compare-focus){opacity:.7;pointer-events:none}
+  .wb-node.compare-focus{border-color:var(--accent)!important;border-width:1.5px}
+  /* 删除变体按钮 */
+  .wbn-del-alt{position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;border:0;background:rgba(255,90,90,.15);color:var(--err);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1}
+  .wbn-del-alt:hover{background:var(--err);color:#fff}
+  /* 图例 */
+  .wb-legend{position:absolute;left:12px;bottom:56px;z-index:10;display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:8px 12px;border-radius:10px;background:rgba(18,23,34,.9);border:1px solid var(--wb-border);color:var(--body);font-size:12px;line-height:1.4;max-width:calc(100% - 200px)}
+  .wb-legend b{color:var(--ink);font-weight:500;margin-right:2px}
+  .wb-legend .lg-node,.wb-legend .lg-line{display:inline-flex;align-items:center;gap:5px;color:var(--body)}
+  .wb-legend .lg-node i{width:12px;height:12px;border-radius:3px;display:inline-block}
+  .wb-legend .lg-script i{background:var(--wb-node);border:1px solid var(--accent-strong)}
+  .wb-legend .lg-image i{background:#1C1F2A;border:1px solid var(--teal)}
+  .wb-legend .lg-video i{background:#16282A;border:1px solid var(--accent)}
+  .wb-legend .lg-line i{width:18px;height:0;display:inline-block;border-top:1.5px solid var(--wb-border)}
+  .wb-legend .lg-flow i{border-color:#566072}
+  .wb-legend .lg-pipe i{border-color:var(--teal)}
+  .wb-legend .lg-alt i{border-style:dashed;border-color:var(--accent)}
+  @media(max-width:480px){.wb-legend{font-size:11px;gap:4px 10px;padding:6px 8px;bottom:60px;max-width:calc(100% - 20px)}}
+  /* 缩放条 */
+  .wb-zoombar{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);z-index:10;display:flex;align-items:center;gap:6px;
+    background:var(--wb-bg);border:1px solid var(--wb-border);border-radius:999px;padding:4px 8px}
+  .wb-zbtn{min-width:44px;min-height:44px;background:none;border:0;color:var(--body);font-size:18px;cursor:pointer;border-radius:10px}
+  .wb-zbtn:hover{background:rgba(123,211,192,.12);color:var(--teal)}
+  /* 素材库 */
+  .wb-assets{position:absolute;top:56px;left:10px;bottom:10px;width:290px;z-index:11;background:var(--wb-assets);border:1px solid var(--wb-border);border-radius:12px;padding:12px;overflow-y:auto;transition:transform .25s ease}
+  .wb-assets[hidden]{display:none}
+  @media(max-width:767px){
+    .wb-assets{position:fixed;left:0;top:0;height:100%;width:min(290px,82vw);transform:translateX(-100%);bottom:auto;z-index:30}
+    .wb-assets.open{transform:translateX(0)}
+  }
+  .cv-ah{font-size:13px;font-weight:800;color:var(--body);display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+  .cv-ah span{font-size:12px;color:var(--muted);font-weight:400}
+  .cv-ag{border-bottom:1px solid #242b3a}
+  .cv-ag:last-child{border-bottom:0}
+  .cv-aghead{width:100%;min-height:44px;display:flex;justify-content:space-between;align-items:center;background:none;border:0;color:var(--ink);font-size:13.5px;font-weight:600;cursor:pointer;padding:6px 2px}
+  .cv-agbody{display:grid;grid-template-rows:0fr;transition:grid-template-rows .25s ease-out}
+  .cv-ag.open .cv-agbody{grid-template-rows:1fr}
+  .cv-ailist{overflow:hidden;min-height:0}
+  .cv-ai{padding:8px 2px;border-bottom:1px dashed #242b3a}
+  .cv-ai:last-child{border-bottom:0}
+  .cv-airow{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .cv-ainame{font-size:13px;color:var(--body);font-weight:600;min-width:0}
+  .cv-aicopy{min-height:44px;padding:0 12px;font-size:12px;border-radius:8px;background:rgba(123,211,192,.1);color:var(--teal);border:1px solid rgba(123,211,192,.25);cursor:pointer;flex:0 0 auto}
+  .cv-aiprompt{margin:6px 0 2px;font-size:12px;line-height:1.6;color:var(--muted)}
+  .cv-aid{margin-top:6px}
+  .cv-aid summary{font-size:12px;color:var(--teal);cursor:pointer;list-style:none;display:inline-block}
+  .cv-aid summary::before{content:'▸ ';color:var(--muted)}
+  .cv-aid[open] summary::before{content:'▾ '}
+  .cv-azero{font-size:12px;color:var(--muted);padding:6px 2px}
+  /* 空态图例默认展示 */
+  .cv-empty{margin:0;padding:28px 16px;text-align:center;font-size:14px;line-height:1.7;color:var(--muted);
+    background:var(--card);border:1px dashed var(--line);border-radius:14px}
+  @media(prefers-reduced-motion:reduce){
+    .kb-in,.kb-out,.kb-pan,.kb-up{animation:none}
+    .cv-agbody{transition:none}
+  }
+  .rolecard .rname{display:flex;align-items:center;gap:8px;font-weight:800;font-size:14.5px;margin-bottom:3px}
+  .rolecard .rtag{font-size:11.5px;color:var(--accent);background:var(--accent-soft);border-radius:14px;padding:1px 9px;font-weight:700}
+  .rolecard p{font-size:12.5px;color:var(--body);line-height:1.6}
+  .rolecard p b{color:var(--teal);font-weight:700}
+  .scene-chips{display:flex;flex-wrap:wrap;gap:8px}
+  .scene-chips .sc{font-size:13px;color:var(--teal);background:var(--teal-soft);border-radius:16px;padding:5px 12px;font-weight:600}
+  .sectitle{font-size:13px;font-weight:800;color:var(--ink);margin:4px 0 10px}
+  /* summary table */
+  .sumtable-wrap{overflow-x:auto}
+  table.sumtable{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;table-layout:fixed;font-size:13px}
+  .sumtable th,.sumtable td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  .sumtable thead th{background:var(--panel);color:#fff;font-weight:700;font-size:12.5px}
+  .sumtable tbody tr:nth-child(even){background:var(--panel)}
+  .sumtable td.no{width:8%;color:var(--muted);font-weight:700}
+  .sumtable td.beat{width:15%}
+  .sumtable td.cam{width:22%}
+  .sumtable td.dur{width:10%;color:var(--muted)}
+  .sumtable td.line{width:45%}
+  /* ===== steps ===== */
+  .steps{display:grid;grid-template-columns:1fr;gap:14px;margin-bottom:54px}
+  @media(min-width:720px){.steps{grid-template-columns:repeat(3,1fr)}}
+  .step{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px}
+  .step .n{font-size:26px;font-weight:900;color:var(--accent);line-height:1}
+  .step h3{font-size:16px;font-weight:700;margin:10px 0 6px}
+  .step p{font-size:13.5px;color:var(--body)}
+  section h2.sec-h{font-size:23px;font-weight:900;margin-bottom:8px;text-align:center}
+  .sec-s{font-size:14.5px;color:var(--muted);text-align:center;margin:0 auto 26px}
+  /* ===== pricing ===== */
+  .pricing-soft{max-width:680px;margin:0 auto 48px;padding:18px 22px;border:1px solid var(--line);border-radius:14px;background:var(--card);text-align:center}
+  .pricing-soft p{font-size:13.5px;color:var(--body);line-height:1.8}
+  .pricing-soft b{color:var(--teal);font-weight:700}
+  .pricing{background:var(--panel);border-radius:20px;color:#fff;padding:30px 22px;margin-bottom:48px}
+  .pricing h2{font-size:22px;font-weight:900;margin-bottom:6px}
+  .pricing .psub{font-size:13.5px;opacity:.7;margin-bottom:22px}
+  .plans{display:grid;grid-template-columns:1fr;gap:12px}
+  @media(min-width:720px){.plans{grid-template-columns:repeat(3,1fr)}}
+  .plan{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);border-radius:14px;padding:18px}
+  .plan.hot{border-color:var(--accent);background:rgba(255,77,109,.10)}
+  .plan .name{font-size:15px;font-weight:700;margin-bottom:4px}
+  .plan .price{font-size:23px;font-weight:900;margin-bottom:12px}
+  .plan .price small{font-size:13px;font-weight:400;opacity:.7}
+  .plan ul{list-style:none;padding:0}
+  .plan li{font-size:13px;opacity:.9;padding:4px 0;border-top:1px dashed rgba(255,255,255,.18)}
+  .plan li:first-child{border-top:none}
+  .plan .tag{margin-top:12px;font-size:12px;color:#ffb3a3}
+  /* ===== toast ===== */
+  .toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%) translateY(20px);background:var(--panel);color:var(--ink);border:1px solid var(--line);padding:11px 18px;border-radius:11px;font-size:14px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .25s ease,transform .25s ease;z-index:50;box-shadow:0 8px 30px rgba(0,0,0,.5);max-width:90vw;text-align:center}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .footer{padding:22px 0 42px;font-size:12.5px;color:var(--muted);text-align:center}
+  .footer b{color:var(--ink)}
+
+  /* ===== 细节打磨 · emilkowalski 动效体系（强 ease-out，UI <300ms，按压缩放） ===== */
+  .btn,.minibtn,.gen-btn,.otab,.op,.ex,.chip,.wb-btn,.wb-zbtn,.api-btn,.api-chev,.totop,.cp{transition:transform var(--press), box-shadow var(--press), background var(--press), border-color var(--press), color var(--press), filter var(--press)}
+  /* 按压缩放：scale(0.97) + 160ms ease-out（emil：按钮必须对按压有反馈，用 ease-out 不用 bounce） */
+  .btn:active,.minibtn:active,.gen-btn:active,.op:active,.ex:active,.chip:active,.wb-btn:active,.wb-zbtn:active,.api-btn:active,.otab:active,.cp:active{transform:scale(.97);transition:transform var(--press)}
+  @media(hover:hover) and (pointer:fine){
+    .btn:hover,.gen-btn:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(0,0,0,.35)}
+    .btn.ghost:hover{box-shadow:0 6px 18px rgba(0,0,0,.3)}
+    .minibtn:hover{border-color:var(--teal);color:var(--teal)}
+    .minibtn.accent:hover{color:#fff;border-color:transparent;filter:brightness(.94)}
+    .otab:hover{border-color:var(--accent);color:var(--accent)}
+    .otab.on:hover{color:#fff}
+    .shot:hover{border-color:rgba(255,77,109,.4);box-shadow:0 8px 26px rgba(0,0,0,.4);transform:translateY(-2px)}
+    .op:hover{background:var(--teal-soft)}
+    .ex:hover{background:rgba(123,211,192,.22);color:var(--teal);transform:translateY(-1px)}
+    .cp:hover{background:rgba(255,77,109,.22);color:#fff}
+  }
+  .shot{transition:border-color var(--press), box-shadow var(--press), transform var(--lift)}
+  .shot:active{transform:scale(.98)}
+  /* 导航链接：底部滑动下划线（transition 可中断，非 keyframes） */
+  .nav .links a{position:relative}
+  .nav .links a::after{content:"";position:absolute;left:0;bottom:-3px;height:2px;width:100%;background:var(--accent);transform:scaleX(0);transform-origin:left;transition:transform .28s var(--ease-out)}
+  .nav .links a:hover::after{transform:scaleX(1)}
+  /* checkmark 勾画动画（复制成功）：一次性动画，用 ease-out */
+  .ck{display:inline-flex;align-items:center;gap:4px}
+  .ck svg{width:14px;height:14px;flex:none}
+  .ck path{stroke:var(--teal);stroke-width:2.5;fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:24;stroke-dashoffset:24;animation:ckDraw .35s var(--ease-out) forwards}
+  @keyframes ckDraw{to{stroke-dashoffset:0}}
+  /* toast：空间一致性（进出同向，底部），transition 可中断 */
+  .toast{transition:opacity .2s var(--ease-out),transform .26s var(--ease-out)}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast:not(.show){transform:translateX(-50%) translateY(18px)}
+  /* 画布节点：入场（stagger 45ms）+ 悬浮 + 拖拽 */
+  .wb-node{animation:nodeIn .34s var(--ease-out) backwards;animation-delay:calc(var(--i,0)*45ms)}
+  @keyframes nodeIn{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}
+  .wb-node{transition:border-color var(--press), box-shadow var(--press)}
+  .wb-node.dragging{box-shadow:0 18px 40px rgba(0,0,0,.6);border-color:var(--teal)}
+  .wb-node:hover{border-color:rgba(123,211,192,.5)}
+  /* API 折叠：chevron 顺滑旋转 */
+  .api-chev{transition:transform .3s var(--ease-out)}
+  /* 生成按钮：加载中的呼吸背景 */
+  .gen-btn.loading{animation:pulseBg 1.6s var(--ease-io) infinite}
+  @keyframes pulseBg{0%,100%{background:var(--accent-strong)}50%{background:var(--accent)}}
+  /* 节拍配色（CH-22: 拉开明度跨度 + 前置圆点） */
+  .shot .beat[data-b="开场钩子"]{color:var(--beat-hook);background:#3A1B26}
+  .shot .beat[data-b="开场钩子"]::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--beat-hook);margin-right:5px;vertical-align:1px}
+  .shot .beat[data-b="冲突推进"]{color:var(--beat-conf);background:#3A241B}
+  .shot .beat[data-b="冲突推进"]::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--beat-conf);margin-right:5px;vertical-align:1px}
+  .shot .beat[data-b="情绪高潮"]{color:var(--beat-peak);background:#3A1B26}
+  .shot .beat[data-b="情绪高潮"]::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--beat-peak);margin-right:5px;vertical-align:1px}
+  .shot .beat[data-b="情绪反转"]{color:var(--beat-turn);background:#33291B}
+  .shot .beat[data-b="情绪反转"]::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--beat-turn);margin-right:5px;vertical-align:1px}
+  .shot .beat[data-b="收束转折"]{color:var(--beat-calm);background:#1E2230}
+  .shot .beat[data-b="收束转折"]::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:transparent;border:1.5px solid var(--beat-calm);margin-right:5px;vertical-align:1px}
+  .shot .beat[data-b="反转留钩"]{color:var(--beat-hook2);background:#241A1D}
+  .shot .beat[data-b="反转留钩"]::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:transparent;border:1.5px solid var(--beat-hook2);margin-right:5px;vertical-align:1px}
+  /* 焦点可见 */
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  /* 生成按钮 loading */
+  .gen-btn.loading{pointer-events:none}
+  .gen-btn.loading::before{content:"";display:inline-block;width:14px;height:14px;margin-right:9px;vertical-align:-2px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  /* hero 信任条 */
+  .trust{display:flex;flex-wrap:wrap;gap:6px 18px;justify-content:center;margin-top:22px}
+  .trust span{font-size:12.5px;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
+  .trust span::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--teal);opacity:.7}
+  /* 返回顶部 */
+  .totop{position:fixed;right:18px;bottom:22px;width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--body);font-size:18px;line-height:1;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .25s ease,transform .25s ease;z-index:40;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+  .totop.show{opacity:1;pointer-events:auto}
+  .totop:hover{transform:translateY(-2px);color:var(--accent);border-color:var(--accent)}
+  /* 台词变体 */
+  .shot .line .tagline{display:inline-block;font-size:12px;font-weight:700;color:var(--teal);background:var(--teal-soft);border-radius:12px;padding:0 7px;margin-right:7px;vertical-align:1px}
+
+  /* ===== 精致化与动画（豆包官网风） ===== */
+  .grad{color:var(--accent)}
+  /* hero 光斑与漂浮 */
+  .hero>*:not(.glow):not(.frames){position:relative;z-index:1}
+  .glow{position:absolute;border-radius:50%;filter:blur(72px);pointer-events:none;z-index:0}
+  .glow.g1{width:540px;height:540px;background:rgba(255,90,60,.04);top:-150px;left:-130px;animation:floaty 11s ease-in-out infinite}
+  .glow.g2{width:480px;height:480px;background:rgba(14,124,115,.04);bottom:-200px;right:-120px;animation:floaty 13s ease-in-out infinite reverse}
+  @keyframes floaty{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(26px,-22px) scale(1.06)}}
+  /* 滚动显现 */
+  .rv{opacity:0;transform:translateY(24px);transition:opacity .6s ease-out,transform .6s ease-out;transition-delay:var(--d,0s);will-change:opacity,transform}
+  .rv.in{opacity:1;transform:none}
+  .btn.primary,.gen-btn{position:relative;overflow:hidden}
+  /* tab 面板切换 + 输出展开 */
+  .out-panel.on{animation:panelfade .38s ease}
+  @keyframes panelfade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .output.show .out-head{animation:panelfade .45s ease}
+  .output.show .sumtable-wrap{animation:panelfade .5s ease}
+  /* 五步管线 */
+  .pipe{display:grid;grid-template-columns:1fr;gap:14px;margin-bottom:54px}
+  @media(min-width:720px){.pipe{grid-template-columns:repeat(5,1fr);gap:12px}}
+  .pstep{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px 16px;position:relative;transition:transform .22s ease,box-shadow .22s ease,border-color .22s ease}
+  .pstep:hover{transform:translateY(-3px);box-shadow:0 14px 30px rgba(0,0,0,.4);border-color:var(--accent)}
+  .pstep .n{width:30px;height:30px;border-radius:50%;background:var(--accent-strong);color:#fff;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;margin-bottom:12px}
+  .pstep .n.hot{background:var(--accent-strong)}
+  .pstep h3{font-size:15px;font-weight:800;margin-bottom:6px}
+  .pstep p{font-size:12.5px;color:var(--body);line-height:1.6}
+  @media(min-width:720px){.pstep:not(:last-child)::after{content:"";position:absolute;right:-10px;top:50%;width:7px;height:7px;border-top:2px solid var(--muted);border-right:2px solid var(--muted);transform:translateY(-50%) rotate(45deg)}}
+  /* 看点卡 */
+  .point{display:flex;gap:12px;align-items:flex-start;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+  .point .ptag{flex:none;font-size:12px;font-weight:700;color:#fff;background:var(--accent-strong);border-radius:14px;padding:2px 10px;margin-top:2px}
+  .point p{font-size:13.5px;color:var(--body);line-height:1.65}
+  .waternote{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--teal);background:var(--teal-soft);border:1px solid rgba(123,211,192,.25);border-radius:10px;padding:10px 13px;margin-bottom:14px}
+  .waternote b{color:var(--teal)}
+  /* 导航滚动静影 */
+  nav.scrolled{box-shadow:0 6px 22px rgba(0,0,0,.4)}
+
+  /* ===== R4: 工作台视图系统（landing ↔ workbench） ===== */
+  #landingView{display:block}
+  #workbenchView{display:none}
+  body.inside #landingView{display:none}
+  body.inside #workbenchView{display:flex}
+  body.inside{overflow:hidden}
+  /* 工作台：3/4 画布 + 1/4 侧栏（flex 子项必须 min-0，否则被内容撑破） */
+  .wb-layout{display:flex;width:100%;height:calc(100dvh - 54px);height:calc(100vh - 54px);overflow:hidden;background:var(--bg)}
+  .wb-main{flex:3;min-width:0;min-height:0;display:flex;flex-direction:column;padding:10px;gap:8px;overflow:hidden}
+  .wb-side{flex:1;min-width:300px;max-width:440px;border-left:1px solid var(--line);background:var(--panel);overflow-y:auto;overflow-x:hidden;padding:14px;display:flex;flex-direction:column;gap:12px}
+  body.canvas-mode .wb-side{display:none}
+  body.canvas-mode .wb-main{flex:1;padding:0}
+  .canvas-host{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+  .canvas-host .wb{flex:1;height:auto;min-height:0;border-radius:14px;overflow:hidden}
+  #panelCanvas{flex:1;min-height:0;display:flex;flex-direction:column;background:var(--wb-bg);border:1px solid var(--wb-border);border-radius:14px;background-image:radial-gradient(circle,#1a1f2e 1px,transparent 1.2px);background-size:26px 26px}
+  #panelCanvas .cv-empty{flex:1;display:flex;align-items:center;justify-content:center;margin:0;padding:24px;text-align:center;background:transparent;border:0;max-width:420px;margin:auto}
+  /* 侧栏内的小说输入区 */
+  .wb-side .panel{background:transparent;border:0;padding:0}
+  .wb-side textarea{min-height:120px}
+  .wb-side .controls{margin-top:0}
+  .wb-side .gen-row{margin-top:0}
+  /* 侧栏子 tab（output 收纳） */
+  .wb-side .out-tabs{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+  .wb-side .out-tabs .otab{min-height:36px;padding:6px 10px;font-size:12px;border-radius:8px}
+  .wb-side .out-panel{display:none;margin-top:8px}
+  .wb-side .out-panel.on{display:block}
+  .wb-side .out-head{margin-top:8px}
+  /* 顶栏 tab 高亮 */
+  .nav .links a.ntab{padding:6px 12px;border-radius:8px;font-weight:600}
+  .nav .links a.ntab.on{background:var(--accent-soft);color:var(--accent)}
+  .nav .api-nav-btn{background:transparent;border:1px solid var(--line);color:var(--body);padding:8px 14px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;min-height:38px}
+  .nav .api-nav-btn:hover{border-color:var(--teal);color:var(--teal)}
+  .nav .api-nav-btn.has-key{border-color:var(--teal);color:var(--teal)}
+  /* API modal */
+  .api-modal{position:fixed;inset:0;z-index:40;display:none;align-items:flex-start;justify-content:center;background:rgba(4,6,10,.7);backdrop-filter:blur(6px);padding:60px 16px;overflow-y:auto}
+  .api-modal.open{display:flex}
+  .api-modal .api-card{margin:0;max-width:680px;width:100%;max-height:80vh;overflow-y:auto;background:var(--panel)}
+  .api-modal .api-card.closed .api-body{display:none}
+  .api-modal .api-card{border:1px solid var(--line)}
+  .api-modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  .api-modal-head h3{font-size:16px;font-weight:800;color:var(--ink)}
+  .api-modal-close{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--body);cursor:pointer;font-size:16px}
+  /* 节点入场动画 + 拖拽态 + hover（R4 TapNow 复刻） */
+  .wb-node{animation:nodeIn .32s var(--ease-out) backwards;animation-delay:calc(var(--i,0)*45ms)}
+  .wb-node.dragging{cursor:grabbing;z-index:25;opacity:.96;box-shadow:0 18px 44px rgba(0,0,0,.6)}
+  @keyframes nodeIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+  @media(hover:hover) and (pointer:fine){
+    .wb-node:not(.sel):hover{border-color:#3a4358;box-shadow:0 10px 26px rgba(0,0,0,.5)}
+  }
+  .wb-node.sel{box-shadow:0 0 0 1.5px var(--accent),0 14px 36px rgba(255,77,109,.18)}
+  /* 节点连线箭头 */
+  .wb-links marker{transition:all .2s ease}
+  /* 移动端工作台 */
+  @media(max-width:860px){
+    .wb-layout{flex-direction:column;height:auto;min-height:calc(100vh - 54px)}
+    .wb-main{flex:none;height:52vh;min-height:340px}
+    .wb-side{flex:none;max-width:none;border-left:0;border-top:1px solid var(--line);min-width:0}
+    body.canvas-mode .wb-main{height:calc(100vh - 54px)}
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{transition:none!important;animation:none!important}
+    html{scroll-behavior:auto}
+  }
+</style>
+</head>
+<body>
+<noscript><div style="position:fixed;inset:0;background:#0B0D12;color:#EDEEF2;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;font-size:15px;line-height:1.8;z-index:999">秒视 AI 需要启用 JavaScript 才能运行。<br>请在浏览器设置中开启 JavaScript 后刷新本页。</div></noscript>
+<nav>
+  <div class="wrap nav">
+    <div class="brand" id="brandHome" title="回到首页" role="button" tabindex="0"><span class="logo"><svg viewBox="0 0 32 32" fill="none"><path d="M12 9l14 7-14 7z" fill="#FF4D6D"/><rect x="8" y="12" width="3" height="8" rx="1.5" fill="#fff"/></svg></span>秒视 AI<small>漫剧分镜</small></div>
+    <div class="links">
+      <a class="ntab on" data-view="landing">首页</a>
+      <a class="ntab" data-view="workbench">画布</a>
+      <button class="api-nav-btn" id="openApiNav" title="接入 DeepSeek AI">API 设置</button>
+    </div>
+  </div>
+</nav>
+
+<div id="landingView"><div class="wrap">
+  <!-- ===== hero ===== -->
+  <header class="hero">
+    <p class="eyebrow rv" style="--d:.04s">小说 → 漫剧分镜提示词</p>
+    <h1 class="rv" style="--d:.1s">贴一段小说，<br>拿到能直接出片的分镜提示词</h1>
+    <p class="lead rv" style="--d:.18s">自动剔水、提炼看点、拆成逐镜分镜，并给出每一镜的<b>出图提示词</b>和<b>视频提示词</b>。复制去即梦 / 可灵 / Seedance 就能出片——这里只产提示词，不替你生成图片。</p>
+    <div class="ctas rv" style="--d:.26s">
+      <button class="btn primary" data-view="workbench">开始免费生成</button>
+    </div>
+    <p class="hint rv" style="--d:.3s"><a class="herolink" data-go="#how">先看五步流程 ↓</a></p>
+    <div class="trust rv" style="--d:.34s"><span>智能剔水镜</span><span>提炼核心看点</span><span>双轨提示词·先图后动</span><span>内容不联网</span></div>
+    <div class="frames" aria-hidden="true">
+      <div class="f f1"><span class="flabel">镜 03 · 静帧提示词</span><div class="fshot">冷灰青调高反差，大特写。她推开门，灯亮，门缝透出一线光……</div></div>
+      <div class="f f2"><span class="flabel">镜 07 · 视频提示词</span><div class="fshot">全景仰拍缓慢升镜。雨夜街角，伞从指缝滑落，约5秒……</div></div>
+      <div class="f f3"><span class="flabel">镜 12 · 静帧提示词</span><div class="fshot">中景过肩。他攥着孕检单，指节发白，冷柜蓝白光打在侧脸……</div></div>
+      <div class="f f4"><span class="flabel">镜 15 · 视频提示词</span><div class="fshot">近景平视缓推。她低头看单子，画外字幕：……两条杠。</div></div>
+    </div>
+  </header>
+
+  <!-- ===== how ===== -->
+  <section id="how" style="margin-bottom:0">
+    <h2 class="sec-h rv">五步，从一段小说到可复制的出片提示词</h2>
+    <p class="sec-s rv" style="--d:.06s">粘贴小说 → 剔水 → 提炼看点 → 逐镜分镜 → 拿走两套提示词去即梦/可灵。</p>
+    <div class="pipe">
+      <div class="pstep rv" style="--d:.04s"><div class="n">1</div><h3>粘贴小说</h3><p>在任意平台复制小说片段，直接粘进来，支持长文。</p></div>
+      <div class="pstep rv" style="--d:.1s"><div class="n">2</div><h3>智能剔水</h3><p>自动删掉没画面、没冲突的“水镜”，只留推动剧情的有效镜头。</p></div>
+      <div class="pstep rv" style="--d:.16s"><div class="n hot">3</div><h3>提炼看点</h3><p>总结这段小说最该留下的反转、冲突和情绪高光。</p></div>
+      <div class="pstep rv" style="--d:.22s"><div class="n">4</div><h3>逐镜分镜 + 双轨提示词</h3><p>每镜同时给一段出图提示词和一段图生视频提示词，台词字幕一并备好。</p></div>
+      <div class="pstep rv" style="--d:.28s"><div class="n">5</div><h3>复制去出片</h3><p>先把出图提示词粘到即梦/可灵出静帧，再拿静帧去图生视频，逐镜拼成漫剧。</p></div>
+    </div>
+  </section>
+
+  <!-- ===== pricing（弱化） ===== -->
+  <section id="pricing" class="pricing-soft rv">
+    <p><b>免费先用。</b>默认走本地规则解析，不花钱、不联网；接入你自己的 DeepSeek Key 后可无限次让 AI 重写分镜。工具只产出提示词，出图/出视频的额度由你在即梦、可灵那边决定。</p>
+  </section>
+
+  <footer class="footer"><b>秒视 AI · 漫剧分镜生成器</b>（产品演示 v4，纯前端示例数据，不联网）</footer>
+  </div><!-- /.wrap -->
+</div><!-- /#landingView -->
+
+<!-- ===== 工作台：3/4 画布 + 1/4 侧栏 ===== -->
+<main id="workbenchView" class="wb-layout">
+  <div class="wb-main">
+    <div class="canvas-host"><div id="panelCanvas"></div></div>
+  </div>
+  <aside class="wb-side">
+    <div class="panel">
+      <div class="label">你的小说 / 文案 / 剧情<label class="count" id="charCount">0 字</label></div>
+      <textarea id="story" placeholder="在这里粘贴小说片段或一段剧情文案，比如：&#10;&#10;深夜，老旧公寓的楼道灯忽明忽灭。她听到身后传来脚步声……"></textarea>
+      <div class="examples" id="examples"></div>
+      <div class="controls">
+        <div class="ctl"><label for="style">风格</label><select id="style">
+          <option value="auto">自动识别</option>
+          <option value="悬疑惊悚">悬疑惊悚</option>
+          <option value="甜宠爱情">甜宠爱情</option>
+          <option value="都市职场">都市职场</option>
+          <option value="古风仙侠">古风仙侠</option>
+          <option value="热血逆袭">热血逆袭</option>
+          <option value="家庭治愈">家庭治愈</option>
+          <option value="科幻赛博">科幻赛博</option>
+        </select></div>
+        <div class="ctl"><label for="count">镜头数</label><select id="count">
+          <option value="5">5 镜（约 30s）</option>
+          <option value="8" selected>8 镜（约 50s）</option>
+          <option value="10">10 镜（约 65s）</option>
+        </select></div>
+        <div class="ctl"><label for="ratio">画幅</label><select id="ratio">
+          <option value="9:16">竖屏 9:16 · 抖音/快手</option>
+          <option value="16:9">横屏 16:9 · B站/视频号</option>
+          <option value="1:1">方形 1:1 · 小红书</option>
+        </select></div>
+        <div class="ctl"><label for="len">单镜时长</label><select id="len">
+          <option value="3">短镜 3s · 快节奏</option>
+          <option value="5" selected>中镜 5s · 标准</option>
+          <option value="8">长镜 8s · 情绪向</option>
+        </select></div>
+      </div>
+      <div class="gen-row">
+        <button class="gen-btn" id="gen">生成分镜提示词</button>
+      </div>
+      <div class="gen-row meta" style="margin-top:6px">纯本地规则解析 · 不联网 · 产出提示词，不替你出图</div>
+
+      <div class="output" id="output">
+        <div class="out-head">
+          <div>
+            <div class="out-title" id="outTitle" style="font-size:15px;font-weight:800;color:var(--ink)">分镜方案</div>
+            <div class="hint" id="outMeta"></div>
+          </div>
+          <div class="out-actions">
+            <button class="minibtn" id="copyScript">复制脚本</button>
+            <button class="minibtn accent" id="copyAll">复制提示词</button>
+            <button class="minibtn" id="download">.md</button>
+          </div>
+        </div>
+        <div class="out-tabs" role="tablist">
+          <button class="otab on" role="tab" aria-selected="true" data-t="script">脚本</button>
+          <button class="otab" role="tab" aria-selected="false" data-t="analysis">看点</button>
+          <button class="otab" role="tab" aria-selected="false" data-t="prompt">提示词</button>
+          <button class="otab" role="tab" aria-selected="false" data-t="line">对白</button>
+          <button class="otab" role="tab" aria-selected="false" data-t="advice">发布</button>
+          <button class="otab" role="tab" aria-selected="false" data-t="lens">镜头</button>
+        </div>
+        <div class="out-panel on" role="tabpanel" data-p="script"><div id="panelScript"></div></div>
+        <div class="out-panel" role="tabpanel" data-p="analysis"><div id="panelAnalysis"></div></div>
+        <div class="out-panel" role="tabpanel" data-p="prompt"><div id="panelPrompt"></div><p class="tips"><b>用法：</b>每个镜头的提示词可直接粘贴到即梦 / 可灵 / Seedance 出图。</p></div>
+        <div class="out-panel" role="tabpanel" data-p="line"><div id="panelLine"></div></div>
+        <div class="out-panel" role="tabpanel" data-p="advice"><div id="panelAdvice"></div></div>
+        <div class="out-panel" role="tabpanel" data-p="lens"><div id="panelLens"></div></div>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<!-- ===== API 接入 modal ===== -->
+<div class="api-modal" id="apiModal">
+  <div style="max-width:680px;width:100%">
+    <div class="api-modal-head">
+      <h3>接入 DeepSeek AI · 生成分镜</h3>
+      <button class="api-modal-close" id="closeApiNav" aria-label="关闭">×</button>
+    </div>
+    <div class="api-card" id="apiCard" style="margin:0">
+      <div class="api-body" data-api-body style="display:block">
+        <div class="api-row2">
+          <div class="api-field">
+            <label for="apiUrl">API 地址<span class="f-opt">选填 · 留空用默认</span></label>
+            <input id="apiUrl" placeholder="默认 DeepSeek，无需填写" spellcheck="false">
+          </div>
+          <div class="api-field">
+            <label for="apiModel">模型<span class="f-opt">选填</span></label>
+            <input id="apiModel" placeholder="deepseek-chat" spellcheck="false">
+          </div>
+        </div>
+        <div class="api-field">
+          <label for="apiKey">Token<span class="f-opt">必填 · 仅存本机浏览器，不联网上报</span></label>
+          <input id="apiKey" type="password" placeholder="sk-…（你的 API Token）" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="api-field">
+          <label for="apiPrompt">镜头脚本提示词<span class="f-opt">可编辑 · 发给 AI 的规则</span></label>
+          <textarea id="apiPrompt" placeholder="在此编写发给 AI 的系统提示词…"></textarea>
+        </div>
+        <div class="api-actions">
+          <button class="api-btn ai" id="aiGen" disabled title="填写 Token 后启用">调用 AI 生成分镜</button>
+          <button class="api-btn local" id="resetPrompt" style="min-height:40px;font-size:13px">恢复默认提示词</button>
+          <button class="api-btn local" id="contBtn" style="min-height:40px;font-size:13px;display:none">续写剩余分镜</button>
+          <span class="api-status" id="apiStatus">不填 Key 走本地规则，填 Key 可启用 AI 增强。</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<button class="totop" id="toTop" aria-label="返回顶部"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+<div aria-live="polite" id="liveRegion" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)"></div>
+
+<script>
+/* =========================================================
+   秒视 AI · 短剧分镜生成器 v3（纯前端，内容感知解析，不联网）
+   ========================================================= */
+function $(id){return document.getElementById(id);}
+var LS_KEY='sugai_shortdrama_v3';
+
+/* ---------- 风格 → 影调/质感 ---------- */
+var STYLES = {
+  '悬疑惊悚':{grade:'冷灰青调，高反差，暗部压黑', style:'暗黑悬疑国漫'},
+  '甜宠爱情':{grade:'暖调柔光，奶油感，细腻光泽', style:'治愈系动漫'},
+  '都市职场':{grade:'冷白通透，城市质感', style:'都市国漫'},
+  '古风仙侠':{grade:'青绿水墨调，雾感古意', style:'古风仙侠动漫'},
+  '热血逆袭':{grade:'暖金高饱和，强光比，力量感', style:'燃系国漫'},
+  '家庭治愈':{grade:'暖黄自然光，柔和写实', style:'温情动漫'},
+  '科幻赛博':{grade:'冷青霓虹光，赛博未来感', style:'赛博国漫'}
+};
+var GENRE_KEYS = {
+  '悬疑惊悚':['尸体','死','秘密','跟踪','恐','黑暗','失踪','谋','害','害怕','惊','案','真相'],
+  '甜宠爱情':['爱','吻','心动','喜欢','甜','抱','告白','女友','男友','想你','脸红'],
+  '古风仙侠':['剑','江湖','皇宫','娘娘','皇上','王爷','仙','修炼','古','宫'],
+  '热血逆袭':['逆袭','翻身','打败','逆风','觉醒','拼命','突破','赢','拼'],
+  '家庭治愈':['妈妈','爸爸','家人','回家','团圆','孩子','亲情','母亲','父亲'],
+  '科幻赛博':['机器','未来','AI','赛博','飞船','科技','虚拟','穿越','芯片','机器人']
+};
+
+/* ---------- 场景识别 ---------- */
+var SCENES = [
+  {k:['咖啡厅','餐厅','吃饭','面馆','火锅','点餐','外卖','奶茶'], scene:'都市餐厅 / 咖啡馆', light:'暖色窗光，玻璃倒影，杯面热气', env:'杯面热气升腾，窗外人流轻晃'},
+  {k:['客厅','卧室','回家','家里','房间','家门口','厨房'], scene:'现代居所室内', light:'暖白台灯，柔和自然光', env:'窗帘轻拂，灯光柔和流转'},
+  {k:['办公室','公司','上班','会议','写字楼','工位','加班'], scene:'写字楼办公室', light:'冷白顶光，玻璃幕墙反光', env:'窗外天色流转，屏幕微光'},
+  {k:['街道','马路','街头','广场','路口','路边','公交'], scene:'城市街头', light:'黄昏逆光 / 霓虹灯带', env:'车流光影流动，衣角被风掀起'},
+  {k:['学校','教室','课堂','同学','上课','校园'], scene:'校园 / 教室', light:'明亮日光，青春通透', env:'窗外光影洒落，发丝轻扬'},
+  {k:['医院','病房','医生','急诊','门诊'], scene:'医院走廊 / 病房', light:'冷白无影灯，克制消毒感', env:'输液线轻晃，走廊灯明暗'},
+  {k:['古','皇宫','庭院','府','宫','剑','江湖','书院'], scene:'古风庭院 / 宫宇', light:'雾霭晨光 / 烛火暖光', env:'烛火摇曳，纱幔轻动，落叶飘落'},
+  {k:['海边','沙滩','湖畔','湖面','河流','海岸'], scene:'海边 / 湖畔', light:'天光海面，逆光剪影', env:'水面波光粼粼，海风拂发'},
+  {k:['下雨','雨天','淋雨','雨夜','暴雨'], scene:'雨天街景', light:'冷调，雨丝逆光，湿地面反光', env:'雨丝斜落，雨伞水珠滑落'},
+  {k:['夜晚','深夜','凌晨','晚上','黑夜','夜里'], scene:'夜晚场景', light:'低照度，月光 / 霓虹', env:'霓虹光影流动，微风'},
+  {k:['森林','山坡','后山','山野','荒郊','树林'], scene:'山野 / 森林', light:'树影斑驳，自然天光', env:'林间光斑流动，风动树叶'}
+];
+var GENRE_SCENE={'古风仙侠':'古风庭院 / 宫宇','悬疑惊悚':'夜晚场景','科幻赛博':'夜晚场景','甜宠爱情':'现代居所室内','家庭治愈':'现代居所室内','都市职场':'写字楼办公室','热血逆袭':'城市街头'};
+function sceneByGenre(genre){
+  if(!GENRE_SCENE[genre]) return null;
+  for(var i=0;i<SCENES.length;i++) if(SCENES[i].scene===GENRE_SCENE[genre]) return SCENES[i];
+  return null;
+}
+
+/* ---------- 情绪识别 → 表演 + 氛围 ---------- */
+var EMOTIONS = [
+  {k:['哭','泪','伤心','难过','心碎','泣'], mood:'悲伤压抑', face:'眼眶泛红、强忍泪意'},
+  {k:['笑','开心','高兴','喜悦','激动','欢呼'], mood:'轻快明亮', face:'眉眼带笑、肢体松弛'},
+  {k:['怒','生气','吼','骂','拍桌','咆哮','愤'], mood:'紧张对峙', face:'眉头紧锁、青筋起伏'},
+  {k:['怕','恐惧','颤抖','慌','惊','冷汗','吓'], mood:'惊悚不安', face:'瞳孔收缩、呼吸急促'},
+  {k:['心动','甜','爱','吻','告白','脸红','温柔'], mood:'暧昧甜蜜', face:'眼神躲闪、耳尖泛红'},
+  {k:['秘密','真相','原来','发现','竟然','没想到'], mood:'悬念揭示', face:'瞳孔震动、顿悟回神'}
+];
+
+/* ---------- 内容感知：转折词 + 节拍运镜 + 角色 ---------- */
+var TURN_KEYS=['原来','竟然','没想到','真相','可是','但','却','突然','直到','终于','发现','转过身','此刻','偏偏','谁知','原来如此','可惜'];
+var BEAT_CAM = {
+  '开场钩子':['大特写 · 平视 · 缓慢推镜约6cm/s','近景 · 平视 · 手持微晃'],
+  '冲突推进':['中景 · 平视 · 固定机位','中景 · 齐胸 · 侧面横移跟拍','双人中景 · 过肩 · 对切'],
+  '情绪高潮':['全景 · 低角度仰拍 · 缓慢升镜','中景 · 俯拍 · 缓推'],
+  '情绪反转':['大特写 · 平视 · 极速推镜约20cm/s','中景 · 平视 · 环绕90°横移'],
+  '收束转折':['中景 · 平视 · 慢推'],
+  '反转留钩':['全景 · 平视 · 缓慢拉镜','远景 · 鸟瞰 · 缓慢抽离']
+};
+var REFS = [
+  {k:'她',label:'她',role:'主角'},{k:'他',label:'他',role:'主角'},{k:'我',label:'我',role:'主角'},{k:'你',label:'你',role:'配角'},
+  {k:'妈妈',label:'妈妈',role:'配角'},{k:'爸爸',label:'爸爸',role:'配角'},{k:'母亲',label:'母亲',role:'配角'},{k:'父亲',label:'父亲',role:'配角'},
+  {k:'老板',label:'老板',role:'配角'},{k:'上司',label:'上司',role:'配角'},{k:'经理',label:'经理',role:'配角'},{k:'老师',label:'老师',role:'配角'},
+  {k:'医生',label:'医生',role:'配角'},{k:'邻居',label:'邻居',role:'配角'},{k:'男友',label:'男友',role:'配角'},{k:'女友',label:'女友',role:'配角'},
+  {k:'朋友',label:'朋友',role:'配角'},{k:'同事',label:'同事',role:'配角'},{k:'孩子',label:'孩子',role:'配角'},{k:'女儿',label:'女儿',role:'配角'},
+  {k:'儿子',label:'儿子',role:'配角'},{k:'爷爷',label:'爷爷',role:'配角'},{k:'奶奶',label:'奶奶',role:'配角'},{k:'警察',label:'警察',role:'配角'},
+  {k:'神秘人',label:'神秘人',role:'配角'}
+];
+
+var OPENERS = {
+  '悬疑惊悚':'有些秘密，最好永远别去拆穿。',
+  '甜宠爱情':'心动，往往从一句不经意的话开始。',
+  '都市职场':'成年人的崩溃，常常是悄无声息的。',
+  '古风仙侠':'江湖路远，恩怨终有清算之时。',
+  '热血逆袭':'真正的翻盘，从没人愿意相信的那一步开始。',
+  '家庭治愈':'家的意义，是无论多晚都有一盏灯等你。',
+  '科幻赛博':'这座城的人，早已分不清虚拟与真实。'
+};
+
+/* ---------- 示例 ---------- */
+var EXAMPLES = [
+  {label:'悬疑 · 深夜跟踪', style:'悬疑惊悚', text:'深夜，老旧的公寓楼道灯忽明忽灭。她听到身后传来脚步声，可回头却空无一人。她加快脚步掏出钥匙，门缝里却透出一线光。推开门，客厅沙发上坐着一个不该出现在这里的人。原来，她一直被人跟踪，而那个跟踪者，正是她最信任的邻居。'},
+  {label:'甜宠 · 便利店', style:'甜宠爱情', text:'她在便利店值夜班，那个总买同一瓶水的男生又来了。这次他多买了一份关东煮放在收银台上：给你的，这么晚还上班。她愣住了，心里某个地方悄悄亮起来。第二天，他留下了一张写满电话的便签。她攥着便签耳尖通红，却忍不住笑了。'},
+  {label:'都市 · 凌晨逆袭', style:'热血逆袭', text:'凌晨两点的写字楼，她盯着改到第七版的方案。领导发来消息：再改。她深吸一口气把眼泪憋回去。三年了，每次以为要出头，总差一步。可这一次，她删掉所有抱怨重新打开文档。天亮时方案通过，她终于拿到那个迟来的晋升。逆袭从来不是一夜之间。'},
+  {label:'长文 · 修仙逆袭', style:'古风仙侠', text:'陈凡本是宗门最普通的杂役弟子，修炼十年，境界纹丝不动。说起来，这日子其实也挺平淡的，无非就是每天挑水、砍柴，日复一日。总之呢，他也没什么别的办法。直到那天，他在后山石洞里捡到一枚会发光的玉佩。这玉佩确实有点奇怪，里面居然藏着一套上古功法。他试着练了练，没想到修为暴涨，一夜连破三境。宗门长老们都惊了，纷纷打听他是怎么做到的。他当然不会说实话，只是默默握紧了玉佩。从此，那个最不起眼的小杂役，开始了他震动整个修真界的逆袭之路。'}
+];
+
+/* ---------- 基础工具 ---------- */
+function splitSentences(text){
+  var m = text.match(/[^。！？；\n]+[。！？；]?/g) || [];
+  return m.map(function(s){return s.replace(/\s+/g,' ').trim();}).filter(function(s){return s.length>0;});
+}
+function firstHit(sentences, rows, def){
+  var all=sentences.join('');
+  for(var i=0;i<rows.length;i++) for(var j=0;j<rows[i].k.length;j++) if(all.indexOf(rows[i].k[j])>-1) return rows[i];
+  return def;
+}
+function detectGenre(text){
+  for(var g in GENRE_KEYS){ var ks=GENRE_KEYS[g]; for(var i=0;i<ks.length;i++) if(text.indexOf(ks[i])>-1) return g; }
+  return '都市职场';
+}
+function chunk(arr, n){
+  var out=[]; if(!arr.length) return out;
+  var size=Math.max(1,Math.ceil(arr.length/n));
+  for(var i=0;i<arr.length;i+=size) out.push(arr.slice(i,i+size));
+  return out;
+}
+function quoteOf(t){
+  var m=t.match(/[「“"『]([^」”"』]+)[」”"』]/);
+  if(m) return m[1];
+  return t.replace(/^[。！？；，,、\s]+/,'');
+}
+function isTurn(t){ for(var i=0;i<TURN_KEYS.length;i++) if(t.indexOf(TURN_KEYS[i])>-1) return true; return false; }
+var SHOT_ORDER=['远景','全景','中景','近景','大特写'];
+function camFor(beat, idx, prevCam){
+  var arr=BEAT_CAM[beat]||BEAT_CAM['冲突推进'];
+  var cam=arr[idx%arr.length];
+  if(prevCam){
+    var prevShot=prevCam.split('·')[0].trim();
+    var prevIdx=SHOT_ORDER.indexOf(prevShot);
+    var camShot=cam.split('·')[0].trim();
+    var camIdx=SHOT_ORDER.indexOf(camShot);
+    if(prevIdx>-1&&camIdx>-1&&Math.abs(prevIdx-camIdx)<=1){
+      cam=arr[(idx+1)%arr.length];
+    }
+  }
+  return cam;
+}
+/* 按标点回切长句，不在词中间硬切 */
+function cutLine(s, max){
+  if(!s) return '';
+  s=String(s).trim();
+  if(s.length<=max) return s;
+  var cut=s.slice(0,max);
+  var m=cut.match(/[。！？，；、…—\s]/g);
+  if(m&&m.length){ var li=cut.lastIndexOf(m[m.length-1]); if(li>6) cut=cut.slice(0,li); }
+  return cut+'…';
+}
+
+/* ---------- 角色 / 场景提取 ---------- */
+function extractRoles(text){
+  var found=[];
+  REFS.forEach(function(r){
+    var n=0, idx=0;
+    while((idx=text.indexOf(r.k,idx))>-1){ n++; idx+=r.k.length; }
+    if(n>0) found.push({label:r.label, role:r.role, count:n});
+  });
+  found.sort(function(a,b){return b.count-a.count;});
+  if(found.length>3) found=found.slice(0,3);
+  var hasMain=found.some(function(r){return r.role==='主角';});
+  if(!hasMain && found.length) found[0]={label:found[0].label, role:'主角', count:found[0].count};
+  /* DS-12: 视觉指纹 + 固定 seed */
+  var FPBANK=[
+    {hair:'齐肩黑直发，发尾微卷',face:'鹅蛋脸，丹凤眼，眉峰微挑',body:'身形纤瘦，肩窄',outfit:'浅灰针织衫 + 深蓝牛仔裤',outfitId:'01',mark:'左耳一颗小银钉'},
+    {hair:'利落短碎发，额前碎刘海',face:'方下颌，浓眉，单眼皮',body:'肩宽背挺，体格偏瘦',outfit:'白衬衫 + 黑西裤',outfitId:'01',mark:'右手腕黑色运动表'},
+    {hair:'低马尾，几缕碎发垂颊',face:'圆脸，杏眼，嘴角下垂',body:'身形中等微胖',outfit:'碎花围裙 + 素色棉衫',outfitId:'01',mark:'围裙上别着一支笔'},
+    {hair:'银白长发及腰',face:'削瘦，眼窝深，红唇',body:'身形高挑偏薄',outfit:'月白广袖长袍',outfitId:'01',mark:'腰间悬一枚旧玉佩'},
+    {hair:'利落背头，鬓角干净',face:'国字脸，剑眉，薄唇',body:'体格结实，肩宽腰窄',outfit:'黑色紧身作战服',outfitId:'01',mark:'左眉尾一道旧疤'}
+  ];
+  found.forEach(function(r,i){
+    var fp=FPBANK[i%FPBANK.length];
+    r.fp={hair:fp.hair,face:fp.face,body:fp.body,outfit:fp.outfit,outfitId:fp.outfitId,mark:fp.mark};
+    r.seed=1000+i*37;
+  });
+  return found;
+}
+function extractScenes(sentences){
+  var all=sentences.join(''), out=[];
+  SCENES.forEach(function(s){ for(var i=0;i<s.k.length;i++){ if(all.indexOf(s.k[i])>-1 && out.indexOf(s.scene)<0){ out.push(s.scene); break; } } });
+  if(!out.length) out.push('（未识别，建议按剧情自设场景）');
+  return out;
+}
+
+/* ---------- 节拍（内容感知） ---------- */
+function beatFor(i,n,turn){
+  if(i===0) return '开场钩子';
+  if(i===n-1) return '反转留钩';
+  if(turn) return '情绪反转';
+  var cl=Math.round((n-1)*0.7);
+  if(i===cl) return '情绪高潮';
+  return i<cl ? '冲突推进' : '收束转折';
+}
+
+/* ---------- 剔水 / 看点提炼 ---------- */
+/* ===== 两级水词 + 动作信号 + 三层剔水（DeepSeek B1a 优化） ===== */
+var FILLER_STRONG=['总之','反正','说起来','说白了','说到底','总而言之','无非','其实','真的','基本上','就是说'];
+var FILLER_WEAK=['只是','有点','稍微','一下','还是','可能','大概','应该','不过','然后','就是','所以','似乎','仿佛','多少'];
+var FILLER=FILLER_STRONG.concat(FILLER_WEAK);
+var ACTION_KW=['转身','回头','低头','抬头','抬眼','皱眉','咬牙','攥','拽','推门','递','抱住','拥抱','跪下','落泪','抓住','吻','喊','吼','哭','笑','愣','颤','跑','冲','站起','坐下','看向','盯着','死','血','疼','碎','裂','发光','亮','暗','响','打开','关上'];
+var SHORT_KEEP=ACTION_KW.concat(['看','走','站','坐','门','剑','刀','光','火','风','雨','脸','眼']);
+function _occ(s,list){var n=0;for(var i=0;i<list.length;i++){var k=list[i],p=s.indexOf(k);while(p>-1){n++;p=s.indexOf(k,p+k.length);}}return n;}
+function _has(s,list){for(var i=0;i<list.length;i++){if(s.indexOf(list[i])>-1)return true;}return false;}
+function isWater(s){
+  var raw=String(s==null?'':s);
+  var clean=raw.replace(/[。！？；，,、\s]/g,'');
+  if(!clean) return true;
+  var hasEmo=EMOTIONS.some(function(e){return e.k.some(function(k){return raw.indexOf(k)>-1;});});
+  var hasScene=SCENES.some(function(r){return r.k.some(function(k){return raw.indexOf(k)>-1;});});
+  var hasTurn=isTurn(raw);
+  // 1) 短句(<6字)：白名单优先，命中任一高价值特征即保留
+  if(clean.length<6){
+    if(/[“”「」『』"]/.test(raw)) return false;
+    if(/[！？!?]/.test(raw)) return false;
+    if(hasEmo||hasTurn||_has(raw,SHORT_KEEP)) return false;
+    return true;
+  }
+  // 2) 纯连接句：虚词起头 + 短 + 无情绪/转折/场景
+  if(/^(然后|于是|接着|而后|随后|说着|说完|这时|此时|就这样)/.test(raw)&&clean.length<=12&&!hasEmo&&!hasScene&&!hasTurn) return true;
+  // 3) 有剧情信号一律不判水
+  if(hasEmo||hasScene||hasTurn||_has(raw,ACTION_KW)) return false;
+  // 4) 水词密度判定（按总出现次数）
+  if(_occ(raw,FILLER_STRONG)>=1) return true;
+  if(_occ(raw,FILLER_WEAK)>=3) return true;
+  return false;
+}
+/* ===== 高光句式族 + 维度打分 + 分桶选点（DeepSeek B1b 优化） ===== */
+var HL_ORDER=['reversal','conflict','cost','wish','punch'];
+var HL_PAT={
+  reversal:/原来[^，。]{0,12}(竟|却)|可[^，。]{0,10}却|没想到[^，。]{0,12}(居然|竟)|竟是|反手|偏偏/,
+  conflict:/[“「"][^”」"]{0,30}[？?！!]|凭什么|你敢|胡说|闭嘴|滚开|为什么/,
+  cost:/[一二三四五六七八九十百千0-9]+(年|天|次|遍|版|个月|分钟|分)|最后一次|只剩/,
+  wish:/只想|真想|要是|如果能|恨不得|哪怕|宁愿/,
+  punch:/不是[^，。]{0,8}而是|这就是|终究|从来|再也|原来/
+};
+var HL_LBL={reversal:'反转悬念',conflict:'核心冲突',cost:'信息钩子',wish:'核心冲突',punch:'金句台词'};
+function _hlScore(s){
+  var raw=String(s==null?'':s), sc=0, dims={}, emo=false;
+  HL_ORDER.forEach(function(k){dims[k]=0;});
+  if(isTurn(raw)) sc+=2;
+  EMOTIONS.forEach(function(e){
+    if(e.k.some(function(k){return raw.indexOf(k)>-1;})){ sc+=2; emo=true; }
+  });
+  SCENES.forEach(function(r){
+    if(r.k.some(function(k){return raw.indexOf(k)>-1;})) sc+=1;
+  });
+  if(raw.replace(/[^一-龥a-zA-Z0-9]/g,'').length>=14) sc+=1;
+  HL_ORDER.forEach(function(k){
+    if(HL_PAT[k].test(raw)){ sc+=3; dims[k]+=1; }
+  });
+  var len=raw.replace(/[^一-龥]/g,'').length;
+  if(len>0&&len<=14&&!dims.punch&&/不是|而是|就是|终究|从来|再也|只有|原来/.test(raw)){
+    sc+=3; dims.punch+=1;
+  }
+  return {sc:sc, dims:dims, emo:emo};
+}
+function _hlLabel(x){
+  for(var i=0;i<HL_ORDER.length;i++){var k=HL_ORDER[i]; if(x.dims[k]>0) return HL_LBL[k];}
+  if(isTurn(x.s)) return '反转悬念';
+  if(x.emo) return '情绪高光';
+  return '核心情节';
+}
+function extractHighlights(kept){
+  var list=(kept||[]).map(function(s,i){
+    var r=_hlScore(s);
+    return {s:s, i:i, sc:r.sc, dims:r.dims, emo:r.emo};
+  });
+  if(!list.length) return [{s:'（内容过短，建议补充）', lbl:'核心情节'}];
+  var MAX=4, picks=[], used={};
+  function take(x){ if(x&&!used[x.i]){ used[x.i]=1; picks.push(x); } }
+  var n=list.length;
+  if(n>=3){
+    var b1=Math.floor(n/3), b2=Math.floor(2*n/3);
+    [[0,b1],[b1,b2],[b2,n]].forEach(function(rg){
+      var seg=list.slice(rg[0],rg[1]).sort(function(a,b){return b.sc-a.sc||a.i-b.i;});
+      if(seg.length&&seg[0].sc>=2) take(seg[0]);
+    });
+  }
+  var rest=list.slice().sort(function(a,b){return b.sc-a.sc||a.i-b.i;});
+  for(var i=0;i<rest.length;i++){ if(picks.length>=MAX) break; if(rest[i].sc>=2) take(rest[i]); }
+  for(var j=0;j<rest.length;j++){ if(picks.length>=MAX) break; take(rest[j]); }
+  picks.sort(function(a,b){return a.i-b.i;});
+  return picks.map(function(x){ return {s:x.s, lbl:_hlLabel(x)}; });
+}
+
+/* ---------- 主生成 ---------- */
+function buildShots(story, styleName, count, dur, ratio){
+  var sentences=splitSentences(story);
+  /* 防冻结：纯空白/换行/标点内容分句为 0 时直接返回 null（否则下方补位 while 会死循环卡死标签页） */
+  if(!sentences.length) return null;
+  var genre=styleName==='auto'?detectGenre(story):styleName;
+  var st=STYLES[genre]||STYLES['都市职场'];
+  var sceneRow=firstHit(sentences,SCENES,null);
+  if(!sceneRow) sceneRow=sceneByGenre(genre);
+  var emo=firstHit(sentences,EMOTIONS,null);
+  // 剔水：剔除信息量低的水句，只保留有效剧情
+  var kept=[], removed=[];
+  sentences.forEach(function(s){ if(isWater(s)) removed.push(s); else kept.push(s); });
+  if(!kept.length) kept=sentences;
+  var groups=chunk(kept,count).slice(0,count);
+  while(groups.length<count){ var last=groups[groups.length-1]||kept; groups.push(last.slice(-1)); }
+  groups=groups.slice(0,count);
+  var highlights=extractHighlights(kept);
+  var ratioMap={'9:16':'竖屏 9:16','16:9':'横屏 16:9','1:1':'方形 1:1'};
+  var ratioText=ratioMap[ratio]||'竖屏 9:16';
+  var roles=extractRoles(story);
+  var scenes=extractScenes(sentences);
+  var camCnt={};
+  var prevCam='';
+  var shots=[];
+  for(var i=0;i<count;i++){
+    var txt=(groups[i]||[]).join('');
+    if(!txt) txt='（此处可补充本镜剧情，或留白由画面承载）';
+    var beat=beatFor(i,count,isTurn(txt));
+    camCnt[beat]=(camCnt[beat]||0);
+    var cam=camFor(beat,camCnt[beat],prevCam);
+    if(cam===prevCam){ camCnt[beat]++; cam=camFor(beat,camCnt[beat],prevCam); }
+    camCnt[beat]++; prevCam=cam;
+    var line=quoteOf(txt);
+    var cleanLine=line.replace(/[。！？；，,、\s]+$/,'');
+    var variants=[line];
+    if(cleanLine.length>16) variants.push(cutLine(cleanLine,16));
+    if(OPENERS[genre]) variants.push(OPENERS[genre]);
+    var shot={
+      no:i+1, beat:beat, cam:cam, camIdx:(camCnt[beat]-1),
+      summary:txt, line:line, lines:variants, lineIdx:0,
+      subtitle:cutLine(cleanLine,26),
+      dur:dur, scene:sceneRow?sceneRow.scene:'（按剧情自设）',
+      light:sceneRow?sceneRow.light:'', env:sceneRow?sceneRow.env:'风动发梢、光影自然流转',
+      mood:emo?emo.mood:'自然情绪',
+      face:emo?emo.face:'人物表演自然、真实', genre:genre, st:st, ratioText:ratioText, ratio:ratio
+    };
+    densify(shot);
+    shots.push(shot);
+  }
+  fixDialogue(shots);
+  return {shots:shots, genre:genre, st:st, scene:sceneRow?sceneRow.scene:'通用', ratioText:ratioText, ratio:ratio, roles:roles, scenes:scenes, highlights:highlights, waterRemoved:removed.length};
+}
+/* 提示词双轨：① 静态分镜图（图生图，先出图） ② 图生视频运动描述（后动） */
+function _c(t){ return (t||'').replace(/\s+/g,'').replace(/[。！？；，,、]+$/,''); }
+function roleLine(){
+  if(!state.roles||!state.roles.length) return '';
+  var L=state.roles.map(function(r){
+    var f=r.fp||{};
+    var bits=[r.label+(r.role?'（'+r.role+'）':'')];
+    if(f.hair) bits.push('发：'+f.hair);
+    if(f.face) bits.push('脸：'+f.face);
+    if(f.body) bits.push('身形：'+f.body);
+    if(f.outfit) bits.push('服装：'+(f.outfitId?'#'+f.outfitId+' ':'')+f.outfit);
+    if(f.mark) bits.push('标志物：'+f.mark);
+    return bits.join('，');
+  }).join('；');
+  return '角色锁定（全片跨集不换）：'+L+'。发型、脸型、服装颜色与标志物首镜起即固定，后续镜头不得改动。';
+}
+function makeImagePrompt(s){
+  var st=s.st, P=[];
+  P.push(st.style+'画风，'+st.grade+'影调，'+s.ratioText);
+  P.push('景别与机位：'+s.cam);
+  P.push('主体与动作：'+_c(s.summary));
+  if(_c(s.face)) P.push('神态细节：'+_c(s.face));
+  P.push('场景与光：'+[s.scene,_c(s.light)].filter(Boolean).join('，'));
+  if(_c(s.env)) P.push('环境动态：'+_c(s.env));
+  P.push('情绪：'+s.mood);
+  return P.join('。')+'。'+(roleLine()||'');
+}
+function makeVideoPrompt(s){
+  var speed=(s.cam.match(/(极慢|慢|中|快|极快)/)||[])[1]||'慢';
+  var shake=/手持|微晃|甩镜|跟拍/.test(s.cam);
+  var p='镜头：'+s.cam+'。'+_c(s.summary)+'。';
+  if(_c(s.face)) p+='神态细节：'+_c(s.face)+'。';
+  p+=(shake?'保留轻微手持抖动，其余保持稳定':'运动速度'+speed+'，起幅落幅清晰，无回弹缓动')+'。';
+  p+='环境动态：'+(_c(s.env)||'静止环境，仅人物动作')+'，幅度轻微。';
+  p+=s.ratioText+'，约'+s.dur+'秒。';
+  if(s.subtitle) p+='画面字幕：'+s.subtitle+'。';
+  return p+(roleLine()||'');
+}
+/* DS-06: 材质/表面状态补全表 */
+var MAT_BY_GENRE={
+  '悬疑惊悚':{surface:'墙面潮湿斑驳，金属扶手锈迹可见',pos:'画面左侧',layer:'走廊纵深隐入黑暗',env:'灯管频闪，墙皮剥落碎屑落下',face:'眼窝半暗，瞳孔微缩'},
+  '甜宠爱情':{surface:'木纹桌面带杯印，暖光在杯壁反光',pos:'画面中央',layer:'窗外街灯虚化',env:'玻璃上雾气轻散，衣架微动',face:'耳尖泛红，嘴角克制上扬'},
+  '都市职场':{surface:'磨砂玻璃隔断带指纹反光，桌面键盘微亮',pos:'画面右侧',layer:'走廊纵深人流虚化',env:'屏幕光忽闪，打印机纸页滑出',face:'下颌绷紧，指尖敲桌'},
+  '古风仙侠':{surface:'青石板带青苔纹理，纱帐半透明垂落',pos:'画面中央',layer:'远处廊桥隐入雾霭',env:'烛火摇曳，落叶旋落',face:'眉目清冽，指尖捏诀微颤'},
+  '热血逆袭':{surface:'水泥地带裂纹，擂台绳索粗粝',pos:'画面中央',layer:'观众席黑压压隐入暗光',env:'汗珠飞溅，汗衫下摆被风掀起',face:'牙关紧咬，目光如炬'},
+  '家庭治愈':{surface:'木质餐桌带汤渍，暖灯在瓷碗反光',pos:'画面中央',layer:'厨房橱柜纵深层次',env:'蒸汽升腾，筷子轻碰碗沿',face:'眼角带笑，眉宇松弛'},
+  '科幻赛博':{surface:'金属舱壁带划痕与霓虹反光，全息投影边缘泛紫',pos:'画面右侧',layer:'远处城市霓虹纵深',env:'全息数据流流动，舱壁微光脉动',face:'瞳孔映着屏幕蓝光，嘴角微抿'}
+};
+function densify(s){
+  var g=s.genre||state.genre||'都市职场';
+  var m=MAT_BY_GENRE[g]||MAT_BY_GENRE['都市职场'];
+  if(!m) m=MAT_BY_GENRE['都市职场'];
+  if(s.summary.length<45){ s.summary=_c(s.summary)+'，'+m.surface+'；'+(s.prop? s.prop+' 处于画面'+m.pos : m.layer); }
+  if(!s.env) s.env=m.env; if(!s.face) s.face=m.face;
+  return s;
+}
+/* DS-08: 对白硬兜底 */
+function fixDialogue(shots){
+  var prevHad=false;
+  shots.forEach(function(s,i){
+    if(s.line&&s.line.length>14) s.line=s.line.slice(0,13)+'…';
+    if(s.line&&prevHad){ s.line=''; }
+    prevHad=!!s.line;
+  });
+  var last=shots[shots.length-1]; if(!last) return;
+  var L=last.line||'';
+  if(!/[？…]$/.test(L)) last.line=(L?L.replace(/[。！]$/,''):'')+'……';
+}
+/* DS-11: 智能分块 */
+function totalDur(shots){return shots.reduce(function(a,s){return a+s.dur;},0);}
+
+/* ---------- 状态 ---------- */
+var state={shots:[], genre:'', st:null, scene:'', ratioText:'', ratio:'9:16', dur:5, roles:[], scenes:[], highlights:[], waterRemoved:0, history:[]};
+
+/* ---------- 渲染 ---------- */
+function renderAll(){
+  var ss=state.shots;
+  $('outTitle').textContent=state.genre+' · '+ss.length+' 镜漫剧分镜';
+  $('outMeta').textContent=state.scene+' · 约'+totalDur(ss)+'秒 · '+state.ratioText+' · 单镜'+state.dur+'s'+(state.waterRemoved?' · 已剔水 '+state.waterRemoved+' 句':'');
+  renderSummary(); renderAnalysis(); renderPrompt(); renderLine(); renderAdvice();
+  bindOps();
+  /* R4: 画布始终在工作台主区，renderAll 后直接重绘节点 */
+  if(typeof renderCanvas==='function' && document.body.classList.contains('inside')){
+    renderCanvas();
+  }
+}
+function esc(t){
+  /* 同时转义引号：保证可安全用于 HTML 文本节点与 "..." / '...' 属性值，防属性注入逃逸 */
+  return String(t==null?'':t).replace(/[&<>"']/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+function shotCard(s){
+  return '<div class="shot anim-in" style="--i:'+((s.no-1)%8)+'"><div class="head"><span class="no">镜 '+s.no+'</span><span class="beat" data-b="'+esc(s.beat)+'">'+esc(s.beat)+'</span><span class="cam">'+esc(s.cam)+'</span><span class="dur">约'+s.dur+'s</span></div>'
+    +'<div class="row"><b>画面：</b>'+esc(s.summary)+'</div>'
+    +'<div class="row"><b>镜头：</b>'+s.cam+' · '+s.st.style+'</div>'
+    +'<div class="line"><span class="tagline">'+(s.lines.length>1?'台词 '+(s.lineIdx+1)+'/'+s.lines.length:'台词')+'</span><b>台词 / 字幕：</b>'+esc(s.line)+'</div>'
+    +'<div class="ops"><button class="op" data-cimg="'+s.no+'">复制出图提示词</button><button class="op" data-cvid="'+s.no+'">复制视频提示词</button>'
+    +(s.lines.length>1?'<button class="op" data-sline="'+s.no+'">换台词</button>':'')
+    +'<button class="op" data-swap="'+s.no+'">换运镜</button></div></div>';
+}
+function renderSummary(){
+  var rows=state.shots.map(function(s){
+    return '<tr><td class="no">'+s.no+'</td><td class="beat">'+esc(s.beat)+'</td><td class="cam">'+esc(s.cam)+'</td><td class="dur">'+s.dur+'s</td><td class="line">'+esc(s.line)+'</td></tr>';
+  }).join('');
+  $('panelScript').innerHTML='<div class="sumtable-wrap"><table class="sumtable"><colgroup><col style="width:8%"><col style="width:15%"><col style="width:22%"><col style="width:10%"><col style="width:45%"></colgroup><thead><tr><th>镜</th><th>节拍</th><th>运镜</th><th>时长</th><th>台词</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
+    +'<div style="height:16px"></div>'
+    +state.shots.map(shotCard).join('');
+}
+function makeRoleSheet(r, st){
+  var name=r&&r.label?r.label:'角色';
+  var lead=r&&r.role==='主角';
+  var style=(st&&st.style)?st.style:'电影感动漫';
+  var grade=(st&&st.grade)?st.grade:'统一柔和光色';
+  var f=r.fp||{};
+  var parts=[
+    '角色设定基准图，四视图并排（正/侧/背/3/4侧）+ 一张脸部特写，白/中性灰背景，无环境无道具。',
+    '角色：'+name+(r.role?'（'+r.role+'）':'')+'。'
+  ];
+  if(f.hair) parts.push('发型发色：'+f.hair+'。');
+  if(f.face) parts.push('脸型五官：'+f.face+'。');
+  if(f.body) parts.push('身形比例：'+f.body+'。');
+  if(f.outfit) parts.push('固定服装（编号 #'+(f.outfitId||'01')+'）：'+f.outfit+'，全剧不换装，换季另立编号。');
+  if(f.mark) parts.push('识别标志物：'+f.mark+'（位置、颜色、材质固定）。');
+  parts.push('全片画风与影调锁定：'+style+'，'+grade+'，不切换画风，不混写实照片或粗糙3D。');
+  parts.push('参考图权重建议 0.65~0.8；seed 固定值见导出文件 character.seed；负面：换脸、改发型、改服装颜色、多余人物、畸形手指。');
+  parts.push('此图作为该角色所有镜头的 image reference，不得单独重新描述角色长相。');
+  return parts.join('');
+}
+/* ===== 素材库（DeepSeek assets）：角色/场景/道具/风格/音效 ===== */
+var PROP_TABLE=[
+{n:'玉佩',k:['玉佩','玉坠','玉牌','玉珏'],c:'饰物'},{n:'古剑',k:['古剑','长剑','佩剑','剑柄'],c:'兵器'},
+{n:'匕首',k:['匕首','短刀','小刀'],c:'兵器'},{n:'书信',k:['书信','信纸','信封','遗书','血书'],c:'纸件'},
+{n:'药瓶',k:['药瓶','瓷瓶','药丸','丹药'],c:'药具'},{n:'灯笼',k:['灯笼','宫灯','孔明灯'],c:'光源'},
+{n:'发簪',k:['发簪','金簪','玉簪','簪子'],c:'饰物'},{n:'手镯',k:['手镯','玉镯','镯子'],c:'饰物'},
+{n:'令牌',k:['令牌','腰牌','印章'],c:'信物'},{n:'面具',k:['面具','面纱','斗笠'],c:'遮蔽'},
+{n:'画卷',k:['画卷','画像','卷轴'],c:'纸件'},{n:'铜镜',k:['铜镜','镜子','菱花镜'],c:'器物'},
+{n:'香囊',k:['香囊','荷包','锦囊'],c:'饰物'},{n:'铃铛',k:['铃铛','银铃','铜铃'],c:'器物'},
+{n:'符纸',k:['符纸','符箓','黄符'],c:'法术'},{n:'手机',k:['手机','电话','屏幕'],c:'现代'},
+{n:'照片',k:['照片','相片','合影'],c:'纸件'},{n:'合同',k:['合同','协议','文件'],c:'纸件'},
+{n:'日记本',k:['日记','笔记本'],c:'纸件'},{n:'车票',k:['车票','机票','票根'],c:'票据'},
+{n:'钥匙',k:['钥匙','锁芯'],c:'器物'},{n:'手表',k:['手表','腕表','怀表'],c:'饰物'},
+{n:'戒指',k:['戒指','指环','钻戒'],c:'饰物'},{n:'油纸伞',k:['油纸伞','纸伞','雨伞'],c:'器物'},
+{n:'火把',k:['火把','火炬'],c:'光源'},{n:'酒杯',k:['酒杯','酒盏','茶盏'],c:'器物'}
+];
+var PROP_SIGNAL=['发光','闪烁','泛着','微光','紧握','握住','攥着','递给','递来','捧着','掏出','拿出','打开','锁着','血迹','带血','刻着','雕着','系着','藏着','锈','断裂','碎裂','老旧','陈旧','熟悉','唯一','传家','信物','遗物','定情'];
+var SFX_LIB={
+'仙侠':[
+{name:'开场氛围',prompt:'古筝与箫声起势，古琴泛音铺底，中段加笛声与空灵人声和声，苍茫辽阔，约 40 秒，无强节拍。'},
+{name:'冲突推进',prompt:'战鼓起势，二胡急断弓与琵琶轮指交替，节奏由 80BPM 抬至 140BPM，压迫力强，约 30 秒。'},
+{name:'情绪高光',prompt:'箫与古筝对答，弦乐轻铺，情绪由压抑转释然，尾音留长，约 25 秒。'}],
+'都市职场':[
+{name:'开场氛围',prompt:'轻电子 Pad 铺底，木吉他分解和弦，叠城市环境底噪，90BPM，冷静克制，约 30 秒。'},
+{name:'冲突推进',prompt:'低音贝斯与电子鼓点，紧凑推进，间或混入玻璃碎裂与翻纸采样，约 20 秒。'},
+{name:'情绪高光',prompt:'钢琴单音主旋律，弦乐渐入后整体放缓，留白多，收于最后一个和弦，约 25 秒。'}],
+'悬疑':[
+{name:'开场氛围',prompt:'低频 drone 长鸣，室内底噪，远处水滴与电流嗡鸣，无明确节拍，压抑不安，约 40 秒。'},
+{name:'冲突推进',prompt:'弦乐高频 tremolo 叠心跳节拍，逐步加速，混入金属摩擦音，逼近感强，约 25 秒。'},
+{name:'情绪高压',prompt:'单音钢琴与低频脉冲交替，突然静默一秒后落一个不和谐和弦，断裂感，约 20 秒。'}],
+'甜宠':[
+{name:'开场氛围',prompt:'钢琴温柔分解和弦，弦乐轻铺，节奏舒缓，明亮温暖，约 30 秒。'},
+{name:'心动瞬间',prompt:'钢琴与民谣吉他交替，加细碎铃铛与鼓刷，情绪上扬，约 20 秒。'},
+{name:'情绪高光',prompt:'弦乐齐奏渐强，钢琴主旋律托底，尾音留白，温暖明亮，约 25 秒。'}]
+};
+function _scenePrompt(name, st){
+  var style=(st&&st.style)||'电影感动漫', grade=(st&&st.grade)||'统一柔和光色', extra='';
+  (state.shots||[]).forEach(function(s){
+    if(extra) return; var sc=s.scene||''; if(!sc) return;
+    if(sc.indexOf(name)>-1||name.indexOf(sc)>-1){
+      if(s.light) extra+='，光照：'+s.light;
+      if(s.env) extra+='，环境：'+s.env;
+    }
+  });
+  return '场景环境图｜'+name+'｜'+style+'，'+grade+extra+'。4K 高清，俯视结构图与平视氛围双构图：明确空间层次（前中后景）、材质细节（墙体、地面、陈设）、光源方向与明暗交界，整体色调统一；不放主体人物，画面干净可直接作背景板，比例 9:16。';
+}
+function _stylePrompt(st){
+  var style=(st&&st.style)||'电影感动漫', grade=(st&&st.grade)||'统一柔和光色';
+  return '全片画风锁定｜'+style+'。整体色调：'+grade+'；线条干净边缘清晰，光影统一为柔和侧光加微弱轮廓光；质感介于电影动画分镜与高精度插画之间，人物与场景同一渲染风格；所有镜头沿用本描述，不切换画风，不混入写实照片或粗糙 3D 质感。';
+}
+function _detectProps(text){
+  if(!text) return [];
+  var hit=[];
+  PROP_TABLE.forEach(function(p){
+    var count=0, first=-1;
+    p.k.forEach(function(kw){
+      var pos=text.indexOf(kw);
+      while(pos>-1){ count++; if(first<0||pos<first) first=pos; pos=text.indexOf(kw,pos+kw.length); }
+    });
+    if(!count) return;
+    var near=false;
+    if(first>=0){
+      var seg=text.slice(Math.max(0,first-12), first+20);
+      for(var i=0;i<PROP_SIGNAL.length;i++){ if(seg.indexOf(PROP_SIGNAL[i])>-1){ near=true; break; } }
+    }
+    if(count>=2||near) hit.push({name:p.n, c:p.c, score:count*2+(near?3:0)});
+  });
+  hit.sort(function(a,b){ return b.score-a.score; });
+  return hit.slice(0,6).map(function(p){
+    return {name:p.name, prompt:'道具特写｜'+p.name+'（'+(p.c||'器物')+'）｜画风与全片统一。4K 高清，纯浅灰背景，主体居中占画幅约七成，细节清晰：材质纹理、磨损痕迹、光泽反光可见；一束柔和顶侧光打亮主体，投影自然；无人手、无多余元素，比例 1:1。'};
+  });
+}
+function buildAssets(storyText){
+  var st=state.st||{}, text=String(storyText||'');
+  var out={roles:[],scenes:[],props:[],style:[],sfx:[]};
+  out.roles=(state.roles||[]).slice().sort(function(a,b){
+    return (a.role==='主角'?0:1)-(b.role==='主角'?0:1);
+  }).map(function(r){ return {name:r.label, prompt:makeRoleSheet(r, st)}; });
+  out.scenes=(state.scenes||[]).map(function(n){ return {name:n, prompt:_scenePrompt(n, st)}; });
+  out.props=_detectProps(text);
+  out.style=[{name:st.style||'电影感动漫', prompt:_stylePrompt(st)}];
+  var g=state.genre||'', lib=SFX_LIB['都市职场'];
+  if(/仙侠|古风|武侠/.test(g)) lib=SFX_LIB['仙侠'];
+  else if(/悬疑|惊悚|犯罪/.test(g)) lib=SFX_LIB['悬疑'];
+  else if(/甜宠|爱情|恋爱/.test(g)) lib=SFX_LIB['甜宠'];
+  out.sfx=lib.slice(0,3).map(function(x){ return {name:x.name, prompt:x.prompt}; });
+  return out;
+}
+function renderAnalysis(){
+  var pts=state.highlights.map(function(h,i){
+    return '<div class="point anim-in" style="--i:'+(i%8)+'"><span class="ptag">'+esc(h.lbl)+'</span><p>'+esc(h.s)+'</p></div>';
+  }).join('');
+  var roles=state.roles.length?state.roles:[{label:'（未识别到明确角色）',role:'配角'}];
+  var cards=roles.map(function(r){
+    return '<div class="rolecard"><div class="rname">'+esc(r.label)+'<span class="rtag">'+(r.role==='主角'?'主角':'配角')+'</span></div><p><b>提示：</b>全片保持同一形象与服装，镜头衔接自然。</p></div>';
+  }).join('');
+  var roleSheetHtml = state.roles.length ? (
+    '<div class="sectitle">角色设定卡 · 基准图提示词</div><div class="sheets">'
+    + state.roles.map(function(r,i){
+        var p=makeRoleSheet(r, state.st);
+        var tip=r.role==='主角'
+          ?'先出四视图基准图，逐镜人物参考权重 0.7–0.8。'
+          :'统一服装与发型锚点，与同场光照保持一致。';
+        return '<div class="rolesheet anim-in" style="--i:'+(i%8)+'">'
+          +'<div class="rshead"><span class="rname">'+esc(r.label)+'</span>'
+          +'<span class="rtag">'+(r.role==='主角'?'主角':'配角')+'</span></div>'
+          +'<p class="rsprompt" title="'+esc(p)+'">'+esc(p)+'</p>'
+          +'<div class="rsfoot"><button type="button" class="btn mini" data-rcopy="'+i+'">复制提示词</button>'
+          +'<span class="rstip">'+esc(tip)+'</span></div></div>';
+      }).join('')
+    +'</div>'
+  ) : '';
+  var sc=state.scenes.map(function(x){return '<span class="sc">'+esc(x)+'</span>';}).join('');
+  var water='';
+  if(state.waterRemoved>0) water='<div class="waternote">已智能剔除 <b>'+state.waterRemoved+'</b> 句低信息量“水内容”，只保留有效剧情。</div>';
+  $('panelAnalysis').innerHTML=
+    '<div class="sectitle">本剧看点</div>'+pts
+    +water
+    +'<div class="sectitle">主要角色</div><div class="role-grid">'+cards+'</div>'
+    +roleSheetHtml
+    +'<div class="sectitle">场景</div><div class="scene-chips">'+sc+'</div>'
+    +'<div class="sectitle">一致性实操</div>'
+    +'<p class="tips"><b>角色：</b>先做 4K 四视图（正 / 侧 / 背）+ 脸部特写作为基准图；即梦/可灵逐镜上传并开「人物参考 / 智能参考」（权重 0.7–0.8）。每个角色要有专属视觉指纹（发型 / 疤痕 / 服饰锚点），避免一张脸批量套用。</p>'
+    +'<p class="tips"><b>场景：</b>先生成场景俯视空间结构图 + 场景九宫格（多角度参考），机位怎么切都不穿帮；或出「全景广角无人物」当母版。跨镜衔接可在每组结尾生成 1 秒技术全景（加“无对白”），下一组截上一组末帧做参考。</p>'
+    +'<p class="tips"><b>运镜：</b>相邻镜头遵循 30° 切换法则（已自动避开同机位）；对话戏固定两角色左右位置（180° 轴线）；运动幅度保持轻微，记录 Seed 值统一画风。</p>';
+}
+function renderPrompt(){
+  $('panelPrompt').innerHTML='<p class="panel-intro">每镜两套提示词，遵循「先图后动」：先用 <b>静态分镜图</b> 在即梦/可灵出图锁定角色与场景，再用 <b>图生视频</b> 描述运动与运镜。运动幅度保持轻微，可记录 Seed 统一画风。</p>'
+    +state.shots.map(function(s){
+    return '<div class="prompt-block"><div class="pt"><b>镜 '+s.no+' · '+s.beat+' · 静态分镜图</b><button class="cp" data-cimg="'+s.no+'">复制</button></div>'+esc(makeImagePrompt(s))+'</div>'
+      +'<div class="prompt-block"><div class="pt"><b>镜 '+s.no+' · 图生视频运动描述</b><button class="cp" data-cvid="'+s.no+'">复制</button></div>'+esc(makeVideoPrompt(s))+'</div>';
+  }).join('');
+}
+function renderLine(){
+  $('panelLine').innerHTML=state.shots.map(function(s,i){
+    return '<div class="copyline"><div class="t">镜 '+(i+1)+' · '+s.beat+'</div>'+esc(s.line)+'</div>';
+  }).join('');
+}
+/* ===== 镜头语言知识库（DeepSeek C2） ===== */
+var LENS=[
+{name:'低机位仰拍',camKey:'中近景 · 低角度仰拍 · 缓慢上摇5°',shot:'中近景 · 低机位仰拍',use:'人物登场 / 气场压制 / 反派威压',prompt:'机位平膝以下略向上仰拍，人物居中偏下，双腿与地面入画，人物比例正常；背景天空或高墙形成纵深压迫，人物保持不动，镜头极缓慢上摇 5°，光线从侧上方打亮下颌与眼窝。'},
+{name:'背面跟拍',camKey:'中景 · 背面齐肩 · 手持微晃跟拍',shot:'中景 · 背面跟拍（手持微晃）',use:'跟随入场 / 悬念窥视 / 探索感',prompt:'机位在人物正后方约两米、与肩同高，随人物前行匀速跟拍，手持晃动幅度极小；人物背影始终占画面中下部，前方环境逐层展开，焦点落在人物后脑与远景之间。'},
+{name:'过肩反打',camKey:'中近景 · 过肩 · 固定机位',shot:'中近景 · 过肩反打',use:'两人对话 / 权力关系 / 情绪对峙',prompt:'机位置于A肩后，前景保留A肩部与后脑虚化、占画面左侧约四分之一，焦点落在B面部；B位于画面右侧三分线，景深浅，背景虚化，人物比例正常，镜头静止。'},
+{name:'双人中景',camKey:'中景 · 平视 · 固定机位',shot:'中景 · 双人对称构图',use:'日常对话 / 关系交代 / 谈判',prompt:'固定机位，两人侧身相对，各占画面左右三分之一，视线形成对角线；中景带腰以上，背景简洁，光线均匀柔和，镜头静止或极缓慢横移百分之三。'},
+{name:'环绕镜头',camKey:'中景 · 平视 · 环绕90°缓慢横移',shot:'中景 · 环绕 Orbit',use:'情绪升温 / 关系转折 / 高光时刻',prompt:'机位围绕人物做半圆环绕，半径约 2.5 米，顺时针 60 至 90 度，速度缓慢匀速；人物保持相对静止，背景随环绕流动，人物比例正常，画面边缘不变形。'},
+{name:'主观 POV',camKey:'主观视角 · 平视 · 缓慢前推微晃',shot:'主观视角 · 手持 POV',use:'代入感 / 惊悚窥视 / 第一人称叙事',prompt:'第一人称主观视角，画面下缘可带轻微手部或袖口，视线高度约 1.6 米，缓慢前推并伴随轻微呼吸起伏；焦点随视线落点变化，画面边缘轻微虚化。'},
+{name:'俯拍压迫',camKey:'全景 · 高角度俯拍 · 缓慢下降',shot:'全景 · 高角度俯拍',use:'人物渺小 / 孤立无援 / 环境压迫',prompt:'机位升至高处，与水平成 45 至 60 度俯拍，人物位于画面中央偏下且体量很小，大面积地面或环境占据画面；构图留白多，冷色调，镜头缓慢下降一点。'},
+{name:'荷兰倾斜',camKey:'中景 · 荷兰角15° · 固定机位',shot:'中景 · 荷兰角 Dutch Angle',use:'失衡 / 精神紧张 / 危险逼近',prompt:'机位倾斜 15 至 20 度拍摄，地平线明显倾斜，人物沿倾斜轴站立；中近景，背景线条一同倾斜，色调偏冷硬，镜头保持倾斜不动。'},
+{name:'地面跟拍',camKey:'低角度贴地 · 平视 · 手持跟拍',shot:'低角度 · 贴地跟拍',use:'奔跑追逐 / 脚步特写 / 紧张推进',prompt:'机位贴近地面约 20 厘米，随人物脚步向前跟拍，人物腿部与地面尘土入画，人物比例正常，运动模糊轻微，前景地面快速掠过。'},
+{name:'推镜',camKey:'中景到近景 · 平视 · 缓慢推镜约8cm/s',shot:'中景到近景 · 缓慢推近',use:'情绪聚焦 / 真相揭晓前',prompt:'机位沿轴线匀速推近，从腰以上推到胸以上，推速均匀缓慢，约三秒完成；人物几乎不动，背景随推近被压缩，焦点始终锁在面部。'},
+{name:'拉镜',camKey:'近景到全景 · 平视 · 缓慢拉镜',shot:'近景到全景 · 缓慢拉远',use:'揭示环境 / 收尾留白 / 孤独感',prompt:'机位沿轴线匀速后拉，从面部近景拉到全身或全景，约三秒完成；人物保持原位不动，环境逐层显露，焦点由人物过渡到整体空间。'},
+{name:'摇镜',camKey:'中景 · 平视 · 横摇Pan约45°',shot:'中景 · 横摇 Pan',use:'扫视环境 / 视线转移 / 连接空间',prompt:'机位原地不动，水平摇摄约 45 度，速度均匀缓慢；前段落在人物身上，后段落在环境关注点，摇动过程中带轻微运动模糊。'},
+{name:'移镜',camKey:'中景 · 平视 · 横移Tracking同步',shot:'中景 · 横移 Tracking',use:'平行跟随 / 空间展示 / 稳定推进',prompt:'机位与人物保持平行做水平横移，速度与人物同步，人物在画面中的位置恒定；背景持续平移，画面平稳无抖动。'},
+{name:'升降 Crane',camKey:'全景 · 升降Crane · 缓慢升镜',shot:'全景 · 升降臂 Crane',use:'场面揭示 / 宏大开场 / 收尾升华',prompt:'机位随升降臂由低处缓慢升起，从人物中景抬升至俯视全景，高度约四到六米；人物保持不动，环境规模逐渐展开，速度匀速。'},
+{name:'大特写',camKey:'大特写 · 平视 · 固定机位微呼吸',shot:'特写 · 微距细节',use:'情绪爆发 / 关键道具 / 线索提示',prompt:'面部特写，画面只保留眼部或唇部与一半脸颊，背景完全虚化；焦点锐利，睫毛与皮肤纹理清晰，人物比例正常，镜头静止，轻微呼吸浮动。'},
+{name:'希区柯克变焦',camKey:'中景 · 平视 · 拉轨推焦DollyZoom',shot:'中景 · 推轨变焦 Dolly Zoom',use:'震惊 / 世界崩塌 / 心理失衡',prompt:'机位向后拉远的同时镜头推近变焦，使人物在画面中的大小保持不变，而背景视场急剧压缩扩张；人物比例正常，不做夸张畸变，持续约两秒。'},
+{name:'前景遮挡转场',camKey:'中景 · 平视 · 固定机位',shot:'中景 · 前景遮挡过渡',use:'场景切换 / 时间跳跃 / 段落分隔',prompt:'机位固定，人物从画面一侧走过，身体或衣袖作为前景划过并遮满画面，遮挡瞬间作为剪切点；前景虚化，后景实焦，动作自然、不快不慢。'},
+{name:'甩镜 Whip Pan',camKey:'中景 · 平视 · 极速甩镜约90°',shot:'中景 · 甩镜 Whip Pan',use:'转场 / 节奏加速 / 追逐切换',prompt:'机位水平急速甩动约 90 度，产生强烈运动模糊，中段画面几乎全虚，落幅停在新主体上并瞬间对焦清晰；时长很短，约 0.3 秒。'},
+{name:'镜像倒影',camKey:'中景 · 平视 · 固定机位',shot:'中景 · 镜像构图',use:'双重人格 / 内心独白 / 悬念铺垫',prompt:'人物面对镜子或水面，画面同时呈现本人与倒影，倒影占画面一侧；对称构图，光线只照亮其中一侧，人物比例正常，镜头静止。'},
+{name:'雨夜剪影',camKey:'全景 · 逆光 · 极缓慢前推',shot:'全景 · 雨夜灯光剪影',use:'氛围渲染 / 孤身赴约 / 情绪低落',prompt:'雨夜街道，人物以剪影方式立于路灯前，光源在人物身后形成轮廓光；雨丝可见，地面积水反光，人物比例正常，镜头极缓慢前推。'}
+];
+function renderLens(){
+  var box=document.getElementById('panelLens');
+  if(!box) return;
+  box.innerHTML='<div class="lensbox">'+LENS.map(function(it,i){
+    var no=(i<9?'0':'')+(i+1), open=i===0;
+    return '<div class="lens'+(open?' open':'')+'">'
+      +'<button type="button" class="lenshead" aria-expanded="'+(open?'true':'false')+'">'
+      +'<span class="lnum">'+no+'</span>'
+      +'<span class="lname">'+esc(it.name)+'</span>'
+      +'<span class="lshot">'+esc(it.shot)+'</span>'
+      +'<svg class="chev" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+      +'</button>'
+      +'<div class="lensbody"><div class="linner"><div class="lpad">'
+      +'<p class="luse"><b>适用：</b>'+esc(it.use)+'</p>'
+      +'<p class="lprompt">'+esc(it.prompt)+'</p>'
+      +'<button type="button" class="btn mini" data-lcopy="'+i+'">复制提示词</button>'
+      +'</div></div></div></div>';
+  }).join('')+'</div>';
+  bindLens();
+}
+function bindLens(){
+  var box=document.getElementById('panelLens');
+  if(!box||box._lensBound) return;
+  box._lensBound=1;
+  box.addEventListener('click',function(e){
+    var cp=e.target.closest?e.target.closest('[data-lcopy]'):null;
+    if(cp){
+      var i=+cp.getAttribute('data-lcopy'), it=LENS[i];
+      if(it) copyText(it.camKey||it.prompt,function(){ setCopied(cp,'已复制'); toast('镜头「'+it.name+'」运镜 camKey 已复制'); });
+      return;
+    }
+    var head=e.target.closest?e.target.closest('.lenshead'):null;
+    if(!head) return;
+    var card=head.parentNode, wasOpen=card.classList.contains('open');
+    var all=box.querySelectorAll('.lens');
+    for(var k=0;k<all.length;k++){
+      all[k].classList.remove('open');
+      all[k].firstChild.setAttribute('aria-expanded','false');
+    }
+    if(!wasOpen){ card.classList.add('open'); head.setAttribute('aria-expanded','true'); }
+  });
+}
+/* ===== 分镜画布（TapNow Tapflow 风格重构） ===== */
+var COL_W=264, COL_GAP=44, SCRIPT_H=120, IMG_H=200, VID_H=200, ROW_GAP=60, WORLD_TOP=70;
+var ROW_SCRIPT_Y=WORLD_TOP, ROW_IMG_Y=ROW_SCRIPT_Y+SCRIPT_H+ROW_GAP, ROW_VID_Y=ROW_IMG_Y+IMG_H+ROW_GAP;
+function isMobile(){ return window.innerWidth<768; }
+function cvLine(s){
+  var l=(s.line||'').trim();
+  if(!l&&s.lines&&s.lines.length) l=(s.lines[s.lineIdx||0]||s.lines[0]||'').trim();
+  return l;
+}
+var CV_CATKEY={'角色':'roles','场景':'scenes','道具':'props','风格':'style','音效':'sfx'};
+function cvAssetsHtml(){
+  var a=buildAssets(state.story||'');
+  var groups=[['角色',a.roles],['场景',a.scenes],['道具',a.props],['风格',a.style],['音效',a.sfx]];
+  return '<div class="cv-ah">素材库<span>复制提示词去生产</span></div>'
+    +groups.map(function(g){
+      var title=g[0], items=g[1]||[];
+      return '<div class="cv-ag open">'
+        +'<button type="button" class="cv-aghead">'+esc(title)+'<span class="cv-agnum">'+items.length+'</span></button>'
+        +'<div class="cv-agbody"><div class="cv-ailist">'
+        +(items.length?items.map(function(it,i){
+            return '<div class="cv-ai"><div class="cv-airow"><span class="cv-ainame">'+esc(it.name)+'</span>'
+              +'<button type="button" class="cv-aicopy" data-acopy="'+title+'|'+i+'">复制</button></div>'
+              +'<details class="cv-aid"><summary>看提示词</summary><p class="cv-aiprompt">'+esc(it.prompt)+'</p></details></div>';
+          }).join(''):'<div class="cv-ai cv-azero">本类未识别到内容</div>')
+        +'</div></div></div>';
+    }).join('');
+}
+/* R4: 节点自由拖拽位置持久化（key → {x,y}） */
+var WB_POS={};
+function wbPos(key,dx,dy){ var p=WB_POS[key]; return p?('left:'+p.x+'px;top:'+p.y+'px'):('left:'+dx+'px;top:'+dy+'px'); }
+/* 三种节点 HTML（纯文本提示词卡片，无媒体占位） */
+function scriptNodeHtml(s){
+  var line=cvLine(s);
+  return '<div class="wb-node" data-type="script" data-i="'+s.no+'" data-st="done" data-k="s'+s.no+'_script" style="--i:'+(s.no-1)+';width:'+COL_W+'px">'
+    +'<div class="wb-port out" title="输出"></div>'
+    +'<div class="wb-nodehead"><span class="wbn-rec"></span><span class="wbn-no">镜 '+s.no+'</span><span class="wbn-beat">'+s.beat+'</span><span class="wbn-cam">'+esc(s.cam.split('·')[0].trim())+'</span></div>'
+    +'<div class="wbn-summary">'+esc(s.summary)+'</div>'
+    +(line?'<div class="wbn-line" data-edit="line" data-i="'+s.no+'">'+esc(line)+'</div>':'')
+    +'<div class="wbn-actions"><button type="button" class="copyall" data-cvall="'+s.no+'">复制本镜全部（出图+视频）</button></div>'
+    +'</div>';
+}
+function imageNodeHtml(s){
+  var p=makeImagePrompt(s);
+  return '<div class="wb-node" data-type="image" data-i="'+s.no+'" data-st="done" data-k="s'+s.no+'_img" style="--i:'+(s.no+8)+';width:'+COL_W+'px">'
+    +'<div class="wb-port in" title="输入"></div><div class="wb-port out" title="输出"></div>'
+    +'<div class="wbn-title">静帧提示词 · 出图用</div>'
+    +'<div class="wbn-meta"><span>'+esc(s.cam.split('·')[0].trim())+'</span><span>'+esc(s.ratioText||'')+'</span></div>'
+    +'<div class="wbn-prompt">'+esc(p)+'</div>'
+    +'<div class="wbn-actions"><button type="button" class="copyimg" data-cvimg="'+s.no+'">复制去即梦出图</button></div>'
+    +'</div>';
+}
+function videoNodeHtml(s){
+  var p=makeVideoPrompt(s);
+  return '<div class="wb-node" data-type="video" data-i="'+s.no+'" data-st="done" data-k="s'+s.no+'_vid" style="--i:'+(s.no+16)+';width:'+COL_W+'px">'
+    +'<div class="wb-port in" title="输入"></div>'
+    +'<div class="wbn-title">视频提示词 · 图生视频用</div>'
+    +'<div class="wbn-meta"><span>约'+s.dur+'秒</span><span>'+esc((s.cam.split('·').slice(-1)[0]||'').trim())+'</span></div>'
+    +'<div class="wbn-prompt">'+esc(p)+'</div>'
+    +'<div class="wbn-actions"><button type="button" class="copyvid" data-cvvid="'+s.no+'">复制去图生视频</button></div>'
+    +'</div>';
+}
+/* 按列动态布局：脚本→静帧→视频 自上而下，按真实高度堆叠 */
+function layoutColumns(box){
+  var list=state.shots||[];
+  list.forEach(function(s,i){
+    var colX=80+i*(COL_W+COL_GAP);
+    var script=box.querySelector('.wb-node[data-type="script"][data-i="'+s.no+'"]');
+    var image=box.querySelector('.wb-node[data-type="image"][data-i="'+s.no+'"]');
+    var video=box.querySelector('.wb-node[data-type="video"][data-i="'+s.no+'"]');
+    var y=WORLD_TOP;
+    if(script){
+      if(!WB_POS['s'+s.no+'_script']){ script.style.left=colX+'px'; script.style.top=y+'px'; }
+      y=parseFloat(script.style.top)+script.offsetHeight+26;
+    }
+    if(image){
+      if(!WB_POS['s'+s.no+'_img']){ image.style.left=colX+'px'; image.style.top=y+'px'; }
+      y=parseFloat(image.style.top)+image.offsetHeight+26;
+    }
+    if(video){
+      if(!WB_POS['s'+s.no+'_vid']){ video.style.left=colX+'px'; video.style.top=y+'px'; }
+    }
+    /* 备选变体挂在脚本节点右侧 */
+    if(s.alts&&s.alts.length){
+      s.alts.forEach(function(alt,ai){
+        var an=box.querySelector('.wb-node.alt[data-i="'+s.no+'"][data-alt="'+ai+'"]');
+        if(an && !WB_POS['s'+s.no+'_alt'+ai]){ an.style.left=(colX+COL_W+24+ai*190)+'px'; if(script) an.style.top=script.style.top; }
+      });
+    }
+  });
+}
+function applyWbTransform(box){
+  var w=box.querySelector('[data-wb-world]'); var st=box._wb;
+  if(!w||!st) return;
+  w.style.transform='translate('+st.tx+'px,'+st.ty+'px) scale('+st.scale+')';
+  var z=box.querySelector('[data-wb-zoom]'); if(z) z.textContent=Math.round(st.scale*100)+'%';
+  /* R4(DS评审): 点阵 = 世界坐标，backgroundSize 随 scale 补偿，position 用取模避免漂移 */
+  var stage=box.querySelector('[data-wb-stage]');
+  if(stage){
+    var base=26, g=base*st.scale;
+    stage.style.backgroundSize=g+'px '+g+'px';
+    stage.style.backgroundPosition=(st.tx%g)+'px '+(st.ty%g)+'px';
+  }
+}
+function _nodeBox(box,type,i,altIdx){
+  var sel='.wb-node[data-type="'+type+'"][data-i="'+i+'"]';
+  if(altIdx!=null) sel+='[data-alt="'+altIdx+'"]';
+  var nd=box.querySelector(sel);
+  if(!nd) return null;
+  return {x:nd.offsetLeft, y:nd.offsetTop, w:nd.offsetWidth, h:nd.offsetHeight};
+}
+function drawLinks(box){
+  var svg=box.querySelector('[data-wb-svg]'); if(!svg) return;
+  var n=state.shots.length; if(!n) return;
+  /* R4: 世界尺寸按所有节点实际包围盒 + 留白 */
+  var maxX=0, maxY=0;
+  box.querySelectorAll('.wb-node').forEach(function(nd){
+    maxX=Math.max(maxX, nd.offsetLeft+nd.offsetWidth);
+    maxY=Math.max(maxY, nd.offsetTop+nd.offsetHeight);
+  });
+  var worldW=Math.max(900, maxX+120), worldH=Math.max(500, maxY+120);
+  svg.setAttribute('width',worldW); svg.setAttribute('height',worldH);
+  svg.setAttribute('viewBox','0 0 '+worldW+' '+worldH);
+  var d='';
+  var showVideo=box._wb._rows!=='script';
+  var showImage=box._wb._rows!=='script';
+  function bez(x1,y1,x2,y2,color,w,dash){
+    var mx=(x1+x2)/2;
+    return '<path d="M '+x1+' '+y1+' C '+mx+' '+y1+', '+mx+' '+y2+', '+x2+' '+y2+'" fill="none" stroke="'+color+'" stroke-width="'+w+'"'+(dash?' stroke-dasharray="4 3"':'')+'/>';
+  }
+  for(var i=0;i<n;i++){
+    var s=state.shots[i];
+    var sb=_nodeBox(box,'script',s.no);
+    if(!sb) continue;
+    var sRightX=sb.x+sb.w, sMidY=sb.y+sb.h/2;
+    if(showImage){
+      var ib=_nodeBox(box,'image',s.no);
+      if(ib){
+        var iTopY=ib.y, iMidX=ib.x+ib.w/2;
+        d+='<line x1="'+iMidX+'" y1="'+sMidY+'" x2="'+iMidX+'" y2="'+iTopY+'" stroke="rgba(123,211,192,.5)" stroke-width="1.5"/>';
+      }
+      if(showVideo){
+        var vb=_nodeBox(box,'video',s.no);
+        if(vb){
+          var iBotY=(ib?ib.y+ib.h:0), vTopY=vb.y, vMidX=vb.x+vb.w/2;
+          d+='<line x1="'+vMidX+'" y1="'+iBotY+'" x2="'+vMidX+'" y2="'+vTopY+'" stroke="rgba(123,211,192,.5)" stroke-width="1.5"/>';
+        }
+      }
+    }
+    if(s.alts&&s.alts.length){
+      s.alts.forEach(function(alt,ai){
+        var ab=_nodeBox(box,'alt',s.no,ai);
+        if(!ab) return;
+        d+=bez(sRightX, sMidY, ab.x, ab.y+ab.h/2, 'rgba(255,77,109,.55)', 1.5, true);
+      });
+    }
+  }
+  for(var i=0;i<n-1;i++){
+    var a=_nodeBox(box,'script',state.shots[i].no);
+    var b=_nodeBox(box,'script',state.shots[i+1].no);
+    if(a&&b) d+=bez(a.x+a.w, a.y+a.h/2, b.x, b.y+b.h/2, 'rgba(86,96,114,.6)', 1.5, false);
+  }
+  svg.innerHTML=d;
+}
+/* 统一世界尺寸：按节点实际包围盒，避免三处公式漂移 */
+function worldBox(box){
+  var maxX=0, maxY=0;
+  box.querySelectorAll('.wb-node').forEach(function(nd){
+    maxX=Math.max(maxX, nd.offsetLeft+nd.offsetWidth);
+    maxY=Math.max(maxY, nd.offsetTop+nd.offsetHeight);
+  });
+  return {w:Math.max(900, maxX+120), h:Math.max(500, maxY+120)};
+}
+/* DS-24: minimap 渲染 */
+function drawMinimap(box){
+  var mini=box.querySelector('[data-wb-mini] canvas'); if(!mini) return;
+  var ctx=mini.getContext('2d');
+  var W=160,H=90;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#0B0D12'; ctx.fillRect(0,0,W,H);
+  var wb=worldBox(box);
+  var sx=W/wb.w, sy=H/wb.h;
+  /* 画节点列 */
+  ctx.fillStyle='#2A3040';
+  box.querySelectorAll('.wb-node').forEach(function(nd){
+    var type=nd.getAttribute('data-type');
+    if(type==='alt'){ ctx.fillStyle='rgba(255,77,109,.4)'; } else { ctx.fillStyle='#2A3040'; }
+    ctx.fillRect(nd.offsetLeft*sx, nd.offsetTop*sy, nd.offsetWidth*sx, nd.offsetHeight*sy);
+  });
+  /* 视口框 */
+  var st=box._wb;
+  var vx=(-st.tx/st.scale)*sx, vy=(-st.ty/st.scale)*sy;
+  var vw=(box.clientWidth/st.scale)*sx, vh=(box.clientHeight/st.scale)*sy;
+  ctx.strokeStyle='#FF4D6D'; ctx.lineWidth=1;
+  ctx.strokeRect(vx,vy,vw,vh);
+}
+/* 变体节点 HTML（DS-27 替代方案分支） */
+function altNodeHtml(s, altIdx, colX, collapsed){
+  var letter=String.fromCharCode(97+altIdx); /* a/b/c */
+  var alt=s.alts[altIdx];
+  var cam=alt.cam;
+  var inner='';
+  if(collapsed){
+    inner='<span class="wbn-alt-badge">'+letter+'</span><div class="wbn-collapse-hint">展开</div>';
+  } else {
+    inner='<span class="wbn-alt-badge">'+letter+'</span>'
+      +'<button type="button" class="wbn-del-alt" data-del-alt="'+s.no+':'+altIdx+'" title="删除备选">×</button>'
+      +'<div class="wb-nodehead" style="margin-bottom:4px"><span class="wbn-no">镜 '+s.no+letter+'</span></div>'
+      +'<div class="wbn-mark" style="font-size:10.5px;color:var(--accent);margin-bottom:4px">备选运镜：'+esc(cam)+'</div>'
+      +'<div class="wbn-prompt" style="font-size:11px">'+esc(makeImagePrompt(Object.assign({},s,{cam:cam})))+'</div>'
+      +'<div class="wbn-actions"><button type="button" class="copyimg" data-cvimg-alt="'+s.no+':'+altIdx+'">复制此备选</button></div>';
+  }
+  return '<div class="wb-node alt'+(collapsed?' collapsed':'')+'" data-type="alt" data-i="'+s.no+'" data-alt="'+altIdx+'" data-k="s'+s.no+'_alt'+altIdx+'" data-st="done" style="width:'+(collapsed?70:220)+'px">'
+    +inner+'</div>';
+}
+function renderCanvas(){
+  var box=document.getElementById('panelCanvas'); if(!box) return;
+  var list=state.shots||[];
+  if(!list.length){
+    box.innerHTML='<p class="cv-empty">画布是空的。在右侧贴一段小说 → 点「生成分镜提示词」，这里会出现 脚本 → 出图提示词 → 视频提示词 的文本管道，每段提示词都能一键复制去即梦 / 可灵。</p>';
+    return;
+  }
+  var mob=isMobile();
+  var prev=box._wb||{};
+  box._wb={tx:0,ty:30,scale:mob?1:0.7, _rows:prev._rows||(mob?'script':'script+image'), _sel:prev._sel||null, _compare:prev._compare||null};
+  /* 世界范围：内容 + 大片留白，支持无限平移 */
+  var worldW=80;
+  list.forEach(function(s,i){
+    worldW+=COL_W+COL_GAP;
+    if(s.alts&&s.alts.length){
+      s.alts.forEach(function(){ worldW+=200; });
+    }
+  });
+  worldW=Math.max(worldW+1600, 2400);
+  var worldH=Math.max(ROW_VID_Y+VID_H+1200, 1600);
+  box.innerHTML='<div class="wb">'
+    +'<div class="wb-top">'
+      +'<button type="button" class="wb-btn" data-wb-assets>素材库</button>'
+      +'<div class="wb-rows">'
+      +'<button type="button" data-row="script" class="'+(box._wb._rows==='script'?'on':'')+'">仅脚本</button>'
+      +'<button type="button" data-row="img" class="'+(box._wb._rows==='script+image'?'on':'')+'">脚本+出图提示词</button>'
+      +'<button type="button" data-row="all" class="'+(box._wb._rows==='all'?'on':'')+'">全展开</button>'
+      +'</div>'
+      +'<button type="button" class="wb-btn primary" data-wb-export>复制全片提示词</button>'
+      +'<span class="wb-tip">脚本 → 出图提示词 → 视频提示词，逐镜复制去即梦/可灵</span>'
+    +'</div>'
+    +'<div class="wb-stage" data-wb-stage>'
+      +'<div class="wb-world" data-wb-world style="width:'+worldW+'px;height:'+worldH+'px">'
+        +'<svg class="wb-links" data-wb-svg></svg>'
+        +list.map(function(s,i){
+          var h=scriptNodeHtml(s);
+          if(box._wb._rows!=='script') h+=imageNodeHtml(s);
+          if(box._wb._rows==='all') h+=videoNodeHtml(s);
+          /* 备选运镜分支 */
+          if(s.alts&&s.alts.length){
+            s.alts.forEach(function(alt,ai){ h+=altNodeHtml(s,ai,false); });
+          }
+          return h;
+        }).join('')
+      +'</div>'
+    +'</div>'
+    +'<div class="wb-float" data-wb-float style="display:none"></div>'
+    +'<div class="wb-mini" data-wb-mini><canvas width="160" height="90"></canvas></div>'
+    +'<div class="wb-legend" role="note">'
+      +'<b>节点</b><span class="lg-node lg-script"><i></i>脚本</span><span class="lg-node lg-image"><i></i>出图提示词</span><span class="lg-node lg-video"><i></i>视频提示词</span>'
+      +'<b>连线</b><span class="lg-line lg-flow"><i></i>镜次推进</span><span class="lg-line lg-pipe"><i></i>先图后动</span><span class="lg-line lg-alt"><i></i>备选运镜</span>'
+    +'</div>'
+    +'<div class="wb-zoombar"><button type="button" class="wb-zbtn" data-wb-z="-" aria-label="缩小">−</button>'
+      +'<span class="wb-zoom" data-wb-zoom>70%</span>'
+      +'<button type="button" class="wb-zbtn" data-wb-z="+" aria-label="放大">+</button>'
+      +'<button type="button" class="wb-zbtn" data-wb-fit>适应</button></div>'
+    +'<div class="wb-assets" data-wb-assets-panel hidden>'+cvAssetsHtml()+'</div>'
+    +'</div>';
+  bindWorkbench();
+  layoutColumns(box);
+  if(mob){ box._wb.tx=20; box._wb.ty=20; box._wb.scale=1; }
+  applyWbTransform(box);
+  drawLinks(box);
+  drawMinimap(box);
+  box._cvBuilt=1;
+}
+function buildExportText(){
+  if(!state.shots || !state.shots.length) return '';
+  var L=[];
+  L.push('【漫剧分镜稿】风格：'+((state.st&&state.st.style)||'未指定')+'  画幅：'+state.ratioText+'  单镜：'+state.dur+'秒');
+  L.push('');
+  if(state.roles && state.roles.length){
+    L.push('【角色 · 先去即梦按此出图锁形象】');
+    state.roles.forEach(function(r,i){ L.push((i+1)+'. '+makeRoleSheet(r, state.st)); });
+    L.push('');
+  }
+  if(state.scenes && state.scenes.length){
+    L.push('【场景】');
+    state.scenes.forEach(function(s,i){ L.push((i+1)+'. '+s); });
+    L.push('');
+  }
+  if(state.highlights && state.highlights.length){
+    L.push('【核心看点 · 这些别删】');
+    state.highlights.forEach(function(h){ L.push('· ['+(h&&h.lbl||'看点')+'] '+(h&&h.s||'')); });
+    L.push('');
+  }
+  L.push('【分镜 · 按顺序逐镜做】');
+  L.push('（每镜先出静帧图 → 拿静帧图去图生视频 → 下载命名 01.mp4、02.mp4……）');
+  state.shots.forEach(function(s,i){
+    L.push('');
+    L.push('—— 第'+(i+1)+'镜 约'+s.dur+'秒');
+    L.push('台词：'+s.line);
+    L.push('静帧图提示词（粘到即梦·文生图，比例9:16）：');
+    L.push(makeImagePrompt(s));
+    L.push('动态视频提示词（先上传刚出的静帧图，再粘这段）：');
+    L.push(makeVideoPrompt(s));
+  });
+  L.push('');
+  L.push('【剪映拼接清单】');
+  L.push('1. 按编号顺序导入全部视频；');
+  L.push('2. 每段裁到约'+state.dur+'秒；');
+  L.push('3. 把每镜台词逐条粘成字幕；');
+  L.push('4. 转场 0.2 秒叠化；加 BGM 音量压到 20%；');
+  L.push('5. 导出 9:16、1080p。');
+  return L.join('\n');
+}
+function bindWorkbench(){
+  var box=document.getElementById('panelCanvas');
+  if(!box||box._wbBound) return; box._wbBound=1;
+  /* R4: 节点头自由拖拽（连线实时跟随） */
+  box.addEventListener('pointerdown',function(e){
+    var st=box._wb; if(!st) return;
+    var head=e.target.closest?e.target.closest('.wb-nodehead'):null;
+    if(!head) return;
+    var node=head.parentNode;
+    var key=node.getAttribute('data-k');
+    e.preventDefault(); e.stopPropagation();
+    try{ head.setPointerCapture(e.pointerId); }catch(_){}
+    node.classList.add('dragging');
+    var stage=box.querySelector('[data-wb-stage]');
+    var rect=stage.getBoundingClientRect();
+    var grabX=(e.clientX-rect.left-st.tx)/st.scale - node.offsetLeft;
+    var grabY=(e.clientY-rect.top-st.ty)/st.scale - node.offsetTop;
+    var rafPending=false;
+    function scheduleRedraw(){
+      if(rafPending) return; rafPending=true;
+      requestAnimationFrame(function(){ rafPending=false; drawLinks(box); drawMinimap(box); });
+    }
+    function mv(ev){
+      var nx=(ev.clientX-rect.left-st.tx)/st.scale - grabX;
+      var ny=(ev.clientY-rect.top-st.ty)/st.scale - grabY;
+      nx=Math.max(0,nx); ny=Math.max(0,ny);
+      node.style.left=nx+'px'; node.style.top=ny+'px';
+      if(key) WB_POS[key]={x:nx,y:ny};
+      scheduleRedraw();
+    }
+    function up(){
+      node.classList.remove('dragging');
+      head.removeEventListener('pointermove',mv); head.removeEventListener('pointerup',up); head.removeEventListener('pointercancel',up);
+    }
+    head.addEventListener('pointermove',mv);
+    head.addEventListener('pointerup',up); head.addEventListener('pointercancel',up);
+  });
+  /* 背景平移 */
+  box.addEventListener('mousedown',function(e){
+    var st=box._wb; if(!st) return;
+    if(e.target.closest('.wb-nodehead')) return;
+    if(e.target.closest('.wbn-actions button')||e.target.closest('.wb-btn')||e.target.closest('.wb-zbtn')||e.target.closest('.cv-aghead')||e.target.closest('.wb-assets')||e.target.closest('.wb-rows button')||e.target.closest('.wbn-line')||e.target.closest('.wb-float')||e.target.closest('.wb-mini')) return;
+    var sx=e.clientX-st.tx, sy=e.clientY-st.ty;
+    function mv2(ev){ st.tx=ev.clientX-sx; st.ty=ev.clientY-sy; applyWbTransform(box); drawMinimap(box); }
+    function up2(){ document.removeEventListener('mousemove',mv2); document.removeEventListener('mouseup',up2); }
+    document.addEventListener('mousemove',mv2); document.addEventListener('mouseup',up2);
+    e.preventDefault();
+  });
+  box.addEventListener('wheel',function(e){
+    var st=box._wb; if(!st) return;
+    if(e.target.closest('.wb-assets')) return;
+    e.preventDefault();
+    var stage=box.querySelector('[data-wb-stage]'); var rect=stage.getBoundingClientRect();
+    var mx=e.clientX-rect.left, my=e.clientY-rect.top;
+    var f=e.deltaY<0?1.1:0.9; var ns=Math.min(2,Math.max(0.3,st.scale*f));
+    var wx=(mx-st.tx)/st.scale, wy=(my-st.ty)/st.scale;
+    st.scale=ns; st.tx=mx-wx*ns; st.ty=my-wy*ns;
+    applyWbTransform(box); drawMinimap(box);
+  },{passive:false});
+  /* 双击内联编辑台词 */
+  box.addEventListener('dblclick',function(e){
+    var ed=e.target.closest?e.target.closest('[data-edit="line"]'):null;
+    if(!ed) return;
+    var no=+ed.getAttribute('data-i'); var s=state.shots[no-1]; if(!s) return;
+    pushHistory();
+    ed.setAttribute('contenteditable','true');
+    ed.focus();
+    document.execCommand('selectAll',false,null);
+    function commit(){
+      ed.removeAttribute('contenteditable');
+      var newLine=ed.textContent.trim();
+      if(newLine&&newLine!==s.line){ s.line=newLine; s.subtitle=cutLine(newLine,26); }
+      ed.removeEventListener('blur',commit);
+      ed.removeEventListener('keydown',onkey);
+    }
+    function onkey(ev){ if(ev.key==='Escape'){ ed.textContent=s.line; ed.removeAttribute('contenteditable'); } if(ev.key==='Enter'){ ev.preventDefault(); ed.blur(); } }
+    ed.addEventListener('blur',commit);
+    ed.addEventListener('keydown',onkey);
+  });
+  box.addEventListener('click',function(e){
+    var t=e.target;
+    /* 素材库开关 */
+    if(t.closest&&t.closest('[data-wb-assets]')){
+      var p=box.querySelector('[data-wb-assets-panel]'); if(p){ p.hidden=!p.hidden; p.classList.toggle('open',!p.hidden); }
+      return;
+    }
+    /* 一键复制 */
+    if(t.closest&&t.closest('[data-wb-export]')){
+      var txt=buildExportText();
+      if(!txt){ toast('请先生成分镜'); return; }
+      (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(function(){ toast('整集分镜稿已复制（'+txt.length+'字）'); },function(){ toast(txt); });
+      return;
+    }
+    /* 缩放 */
+    if(t.closest&&t.closest('[data-wb-z]')){
+      var z=t.closest('[data-wb-z]').getAttribute('data-wb-z');
+      var f=z==='+'?1.15:0.87; box._wb.scale=Math.min(2,Math.max(0.3,box._wb.scale*f)); applyWbTransform(box); drawMinimap(box); return;
+    }
+    if(t.closest&&t.closest('[data-wb-fit]')){ box._wb.tx=20; box._wb.ty=30; box._wb.scale=isMobile()?1:0.7; applyWbTransform(box); drawMinimap(box); return; }
+    /* 行折叠（保留当前平移/缩放/选中，不重置视图） */
+    var rowBtn=t.closest?t.closest('[data-row]'):null;
+    if(rowBtn){
+      box.querySelectorAll('.wb-rows button').forEach(function(b){b.classList.remove('on');});
+      rowBtn.classList.add('on');
+      var prevTx=box._wb.tx, prevTy=box._wb.ty, prevScale=box._wb.scale, prevSel=box._wb._sel, prevCmp=box._wb._compare;
+      box._wb._rows=rowBtn.getAttribute('data-row')==='script'?'script':rowBtn.getAttribute('data-row')==='all'?'all':'script+image';
+      renderCanvas(); box._cvBuilt=1;
+      box._wb.tx=prevTx; box._wb.ty=prevTy; box._wb.scale=prevScale; box._wb._sel=prevSel; box._wb._compare=prevCmp;
+      if(prevSel){ var nn=box.querySelector('.wb-node[data-i="'+prevSel+'"]'); if(nn) nn.classList.add('sel'); }
+      applyWbTransform(box); drawMinimap(box);
+      return;
+    }
+    /* 素材库折叠 */
+    var ah=t.closest?t.closest('.cv-aghead'):null;
+    if(ah){ ah.parentNode.classList.toggle('open'); return; }
+    /* 素材库复制 */
+    var ac=t.closest?t.closest('[data-acopy]'):null;
+    if(ac){ var parts=ac.getAttribute('data-acopy').split('|'); var cat=parts[0],idx=+parts[1];
+      var a=buildAssets(state.story||''); var lst=a[CV_CATKEY[cat]]||[]; var it=lst[idx];
+      if(it) copyText(it.prompt,function(){setCopied(ac,'已复制'); toast(cat+'提示词已复制');}); return; }
+    /* 静帧复制 */
+    var ci=t.closest?t.closest('[data-cvimg]'):null;
+    if(ci){ var s1=state.shots[(+ci.getAttribute('data-cvimg'))-1]; if(s1) copyText(makeImagePrompt(s1),function(){setCopied(ci,'已复制'); toast('出图提示词已复制 → 粘到即梦/可灵「文生图」');}); return; }
+    /* 视频复制 */
+    var cv=t.closest?t.closest('[data-cvvid]'):null;
+    if(cv){ var s2=state.shots[(+cv.getAttribute('data-cvvid'))-1]; if(s2) copyText(makeVideoPrompt(s2),function(){setCopied(cv,'已复制'); toast('视频提示词已复制 → 先传静帧图，再粘到「图生视频」');}); return; }
+    /* 本镜全部（出图+视频） */
+    var ca2=t.closest?t.closest('[data-cvall]'):null;
+    if(ca2){ var sa=state.shots[(+ca2.getAttribute('data-cvall'))-1]; if(sa){
+      var txt='【镜 '+sa.no+'】\n出图提示词（文生图）：\n'+makeImagePrompt(sa)+'\n\n视频提示词（图生视频）：\n'+makeVideoPrompt(sa);
+      copyText(txt,function(){setCopied(ca2,'已复制'); toast('镜'+sa.no+' 出图+视频提示词已一起复制');});
+    } return; }
+    /* DS-27: 变体复制 */
+    var ca=t.closest?t.closest('[data-cvimg-alt]'):null;
+    if(ca){
+      var parts=ca.getAttribute('data-cvimg-alt').split(':');
+      var sIdx=+parts[0]-1, altIdx=+parts[1];
+      var s=state.shots[sIdx]; if(!s||!s.alts||!s.alts[altIdx]) return;
+      var altCam=s.alts[altIdx].cam;
+      var altShot=Object.assign({},s,{cam:altCam});
+      copyText(makeImagePrompt(altShot),function(){setCopied(ca,'已复制'); toast('变体提示词已复制');}); return;
+    }
+    /* DS-27: 删除变体 */
+    var da=t.closest?t.closest('[data-del-alt]'):null;
+    if(da){
+      var dp=da.getAttribute('data-del-alt').split(':');
+      var di=+dp[0]-1, dai=+dp[1];
+      pushHistory();
+      state.shots[di].alts.splice(dai,1);
+      renderCanvas(); box._cvBuilt=1;
+      toast('变体已删除'); return;
+    }
+    /* DS-23: 浮条按钮 */
+    var fb=t.closest?t.closest('[data-fb]'):null;
+    if(fb){
+      var act=fb.getAttribute('data-fb');
+      var sel=box._wb._sel; if(!sel) return;
+      var s=state.shots[sel-1]; if(!s) return;
+      if(act==='alt'){
+        pushHistory();
+        if(!s.alts) s.alts=[];
+        if(s.alts.length>=3){ toast('单镜最多 3 个变体'); return; }
+        var arr=BEAT_CAM[s.beat]||BEAT_CAM['冲突推进'];
+        var nextIdx=((s.camIdx||0)+1+s.alts.length)%arr.length;
+        s.alts.push({cam:arr[nextIdx], camIdx:nextIdx});
+        renderCanvas(); box._cvBuilt=1;
+        /* 重渲染后重新选中+浮条 */
+        box._wb._sel=sel;
+        var newNode=box.querySelector('.wb-node[data-type="script"][data-i="'+sel+'"]');
+        if(newNode){ newNode.classList.add('sel'); var fl2=box.querySelector('[data-wb-float]'); fl2.style.display='flex'; fl2.innerHTML='<button type="button" data-fb="alt">+ 替代方案</button><button type="button" data-fb="cam">换运镜</button><button type="button" data-fb="cmp">比较模式</button>'; }
+        toast('已生成 '+String.fromCharCode(96+s.alts.length)+' 变体');
+      } else if(act==='cam'){
+        pushHistory();
+        var arr2=BEAT_CAM[s.beat]||BEAT_CAM['冲突推进'];
+        s.camIdx=((s.camIdx||0)+1)%arr2.length; s.cam=arr2[s.camIdx];
+        renderCanvas(); box._cvBuilt=1;
+        box._wb._sel=sel;
+        var nn2=box.querySelector('.wb-node[data-type="script"][data-i="'+sel+'"]');
+        if(nn2){ nn2.classList.add('sel'); var fl3=box.querySelector('[data-wb-float]'); fl3.style.display='flex'; fl3.innerHTML='<button type="button" data-fb="alt">+ 替代方案</button><button type="button" data-fb="cam">换运镜</button><button type="button" data-fb="cmp">比较模式</button>'; }
+        toast('镜 '+s.no+' 运镜已换：'+s.cam);
+      } else if(act==='cmp'){
+        var world=box.querySelector('[data-wb-world]');
+        if(box._wb._compare===sel){
+          box._wb._compare=null; world.classList.remove('compare');
+          world.querySelectorAll('.wb-node').forEach(function(n){n.classList.remove('compare-focus');});
+        } else {
+          box._wb._compare=sel; world.classList.add('compare');
+          world.querySelectorAll('.wb-node').forEach(function(n){
+            var ni=+n.getAttribute('data-i');
+            if(ni===sel) n.classList.add('compare-focus'); else n.classList.remove('compare-focus');
+          });
+        }
+      }
+      return;
+    }
+    /* DS-24: minimap 点击 */
+    var mm=t.closest?t.closest('[data-wb-mini]'):null;
+    if(mm){
+      var rect=mm.getBoundingClientRect();
+      var mx=(e.clientX-rect.left)/rect.width;
+      var my=(e.clientY-rect.top)/rect.height;
+      var wb2=worldBox(box);
+      var stage=box.querySelector('[data-wb-stage]'); var sr=stage.getBoundingClientRect();
+      box._wb.tx=sr.width/2-mx*wb2.w*box._wb.scale;
+      box._wb.ty=sr.height/2-my*wb2.h*box._wb.scale;
+      applyWbTransform(box); drawMinimap(box);
+      return;
+    }
+    /* DS-23: 节点选中 → 浮条 */
+    var node=t.closest?t.closest('.wb-node'):null;
+    if(node){
+      var no=+node.getAttribute('data-i');
+      /* 清除旧选中 */
+      box.querySelectorAll('.wb-node.sel').forEach(function(n){n.classList.remove('sel');});
+      box.querySelectorAll('.wb-node.compare-focus').forEach(function(n){n.classList.remove('compare-focus');});
+      node.classList.add('sel');
+      box._wb._sel=no;
+      /* 定位浮条 */
+      var float=box.querySelector('[data-wb-float]');
+      float.style.display='flex';
+      float.style.left='50%';
+      float.style.top='56px';
+      float.style.transform='translateX(-50%)';
+      float.innerHTML='<button type="button" data-fb="alt">+ 替代方案</button><button type="button" data-fb="cam">换运镜</button><button type="button" data-fb="cmp">比较模式</button>';
+      return;
+    }
+    /* 点击空白取消选中 + 收浮条 */
+    if(!t.closest('.wb-node') && !t.closest('.wb-float')){
+      box.querySelectorAll('.wb-node.sel').forEach(function(n){n.classList.remove('sel');});
+      var fl=box.querySelector('[data-wb-float]'); if(fl) fl.style.display='none';
+      box._wb._sel=null;
+    }
+  });
+  /* 移动端触控 */
+  box.addEventListener('touchstart',function(e){
+    var st=box._wb; if(!st) return;
+    if(e.target.closest('.wb-assets')||e.target.closest('.wbn-actions')||e.target.closest('.cv-agbody')||e.target.closest('.wb-nodehead')||e.target.closest('.wbn-line')||e.target.closest('.wb-btn')||e.target.closest('.wb-zbtn')||e.target.closest('.wb-rows button')||e.target.closest('.wb-float')) return;
+    var stage=box.querySelector('[data-wb-stage]');
+    if(e.touches.length===1){
+      var t=e.touches[0];
+      st._tp={x:t.clientX-st.tx, y:t.clientY-st.ty, dist:0, startScale:st.scale};
+    } else if(e.touches.length===2){
+      var dx=e.touches[0].clientX-e.touches[1].clientX, dy=e.touches[0].clientY-e.touches[1].clientY;
+      st._tp={dist:Math.hypot(dx,dy), startScale:st.scale};
+    }
+    e.preventDefault();
+  },{passive:false});
+  box.addEventListener('touchmove',function(e){
+    var st=box._wb; if(!st) return;
+    if(e.target.closest('.wb-assets')||e.target.closest('.wbn-actions')||e.target.closest('.wb-nodehead')||e.target.closest('.wbn-line')) return;
+    if(e.touches.length===1 && st._tp && st._tp.dist===0){
+      var t=e.touches[0];
+      var dx=t.clientX-st._tp.x, dy=t.clientY-st._tp.y;
+      /* 竖直为主的手势交给页面滚动，不吞掉；水平/斜向才拖动画布 */
+      if(Math.abs(dy)>Math.abs(dx)*1.2){ return; }
+      st.tx=t.clientX-st._tp.x; st.ty=t.clientY-st._tp.y; applyWbTransform(box);
+    } else if(e.touches.length===2 && st._tp && st._tp.dist>0){
+      var dx2=e.touches[0].clientX-e.touches[1].clientX, dy2=e.touches[0].clientY-e.touches[1].clientY;
+      var d=Math.hypot(dx2,dy2), ns=Math.min(2,Math.max(0.3,st._tp.startScale*d/st._tp.dist));
+      st.scale=ns; applyWbTransform(box);
+    }
+    e.preventDefault();
+  },{passive:false});
+  box.addEventListener('touchend',function(){ if(box._wb) box._wb._tp=null; });
+}
+function renderAdvice(){
+  var subj=state.shots[0]?esc(state.shots[0].summary.slice(0,14)):'这个';
+  $('panelAdvice').innerHTML=
+    '<div class="prompt-block"><div class="pt"><b>出片工作流 · 先图后动</b></div>① 用「静态分镜图」提示词在 即梦/可灵 逐镜出图（上传角色基准图 + 开启人物参考）；② 用「图生视频」提示词在 即梦 Seedance / 可灵 逐镜生视频（单镜 3–5s，运动幅度轻微）；③ 剪映拼合：配音（对口型）+ 字幕 + BGM。别直接文生视频，先锁静态图再转动态。</div>'
+    +'<div class="prompt-block"><div class="pt"><b>节奏 · 3 分钟钩子法则</b></div>开场 0–3 秒放最强钩子；每 30 秒一个小反转；结尾留钩引导关注。单镜 3–5 秒，竖屏 9:16 完播率更高。标题三选：'+subj+'的真相｜结局你绝对想不到｜前 3 秒你就会停下。</div>'
+    +'<div class="prompt-block"><div class="pt"><b>适配平台与投稿</b></div>红果漫剧剧场（个人认证 + 上传 1 部完整样片审核，新手选“非独家分成”）；抖音漫剧 / 短剧版权中心（番茄 IP 漫剧改编可补贴版权费）；视频号 / B站 / 小红书（1:1 配图文二创）。</div>'
+    +'<div class="prompt-block"><div class="pt"><b>合规红线（红果 AI 新规）</b></div>每集片头标注「AI辅助制作」；每个角色要有专属“视觉指纹”，禁止一套脸批量套用（平台有人脸比对）；勿挪用他人角色造型、商用写真或美术作品，版权素材需授权。</div>';
+}
+function setShotLine(s, idx){
+  s.lineIdx=((idx%s.lines.length)+s.lines.length)%s.lines.length;
+  s.line=s.lines[s.lineIdx];
+  var c=s.line.replace(/[。！？；，,、\s]+$/,'');
+  s.subtitle=cutLine(c,26);
+}
+function setCopied(btn, msg){
+  var old=btn.textContent, oldHtml=btn.innerHTML;
+  btn.innerHTML='<span class="ck"><svg viewBox="0 0 24 24"><path d="M5 12.5 10 17.5 19 7"/></svg>'+msg+'</span>';
+  btn.style.color='#0E7C73';
+  clearTimeout(btn._tm);
+  btn._tm=setTimeout(function(){btn.innerHTML=oldHtml;btn.textContent=old;btn.style.color='';},1400);
+}
+function bindOps(){
+  document.querySelectorAll('[data-cimg]').forEach(function(b){
+    b.onclick=function(){
+      var no=parseInt(b.getAttribute('data-cimg'),10); var s=state.shots[no-1]; if(!s)return;
+      copyText(makeImagePrompt(s),function(){toast('镜'+no+' 静帧提示词已复制 → 粘到即梦/可灵「文生图」，比例选9:16'); setCopied(b,'已复制');});
+    };
+  });
+  document.querySelectorAll('[data-cvid]').forEach(function(b){
+    b.onclick=function(){
+      var no=parseInt(b.getAttribute('data-cvid'),10); var s=state.shots[no-1]; if(!s)return;
+      copyText(makeVideoPrompt(s),function(){toast('镜'+no+' 动态提示词已复制 → 先上传刚出的静帧图，再粘到「图生视频」'); setCopied(b,'已复制');});
+    };
+  });
+  document.querySelectorAll('[data-sline]').forEach(function(b){
+    b.onclick=function(){
+      var no=parseInt(b.getAttribute('data-sline'),10); var s=state.shots[no-1]; if(!s)return;
+      setShotLine(s, s.lineIdx+1);
+      renderSummary(); renderPrompt(); renderLine();
+      bindOps();
+      toast('镜 '+no+' 已换台词（'+(s.lineIdx+1)+'/'+s.lines.length+'）');
+    };
+  });
+  document.querySelectorAll('[data-swap]').forEach(function(b){
+    b.onclick=function(){
+      var no=parseInt(b.getAttribute('data-swap'),10); var s=state.shots[no-1]; if(!s)return;
+      var arr=BEAT_CAM[s.beat]||BEAT_CAM['冲突推进'];
+      s.camIdx=(s.camIdx+1)%arr.length; s.cam=arr[s.camIdx];
+      renderSummary(); renderPrompt();
+      bindOps();
+      toast('镜 '+no+' 已换运镜：'+s.cam);
+    };
+  });
+  document.querySelectorAll('[data-rcopy]').forEach(function(b){
+    b.onclick=function(){
+      var i=parseInt(b.getAttribute('data-rcopy'),10); var r=state.roles[i]; if(!r)return;
+      copyText(makeRoleSheet(r, state.st), function(){ setCopied(b,'已复制'); toast('角色基准图提示词已复制 → 先去即梦出四视图锁形象'); });
+    };
+  });
+}
+
+/* ---------- 复制 / 下载 / Toast ---------- */
+function toast(msg){
+  var t=$('toast'); t.textContent=msg; t.classList.add('show');
+  var lr=$('liveRegion'); if(lr) lr.textContent=msg; /* 无障碍：屏幕阅读器同步播报 */
+  clearTimeout(t._tm); t._tm=setTimeout(function(){t.classList.remove('show');},1800);
+}
+function copyText(txt, ok){
+  function fallback(){
+    var ta=document.createElement('textarea'); ta.value=txt; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select(); try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); ok&&ok();
+  }
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(function(){ok&&ok();},fallback); }
+  else fallback();
+}
+
+/* ---------- 生成入口 ---------- */
+/* odometer 数字轮盘：把 count 渲染成滚动数字 */
+function generate(){
+  var story=$('story').value.trim();
+  if(story.length<10){ toast('再贴一段更完整的故事，至少 10 个字'); $('story').focus(); return; }
+  var btn=$('gen'); btn.disabled=true; btn.classList.add('loading'); btn.textContent='正在解析人物与场景…';  setTimeout(function(){ if(btn.disabled) btn.textContent='正在剔水、留有效剧情…'; },150);
+  setTimeout(function(){ if(btn.disabled) btn.textContent='正在切分镜头节奏…'; },330);
+  setTimeout(function(){
+    var btn=$('gen');
+    function _resetBtn(){ btn.disabled=false; btn.classList.remove('loading'); btn.textContent='生成分镜提示词'; }
+    try{
+      var style=$('style').value, count=parseInt($('count').value,10), ratio=$('ratio').value, dur=parseInt($('len').value,10);
+      var r=buildShots(story,style,count,dur,ratio);
+      if(!r){ toast('没解析出有效内容：请粘贴至少一句完整的话（纯空白或标点无法生成）'); _resetBtn(); return; }
+      state.shots=r.shots; state.genre=r.genre; state.st=r.st; state.scene=r.scene; state.ratioText=r.ratioText; state.ratio=r.ratio; state.dur=dur; state.roles=r.roles; state.scenes=r.scenes; state.highlights=r.highlights; state.waterRemoved=r.waterRemoved; state.story=story;
+      if(btn.disabled) btn.textContent='正在排版提示词…';
+      renderAll();
+      $('output').classList.add('show');
+      savePrefs(story,style,count,ratio,dur);
+      toast('已生成 '+state.shots.length+' 镜分镜 · 提炼 '+state.highlights.length+' 个看点'+(state.waterRemoved?' · 剔水 '+state.waterRemoved:''));
+    }catch(err){
+      console.error(err);
+      toast('生成失败：'+((err&&err.message)||'未知错误')+'。可换个片段再试');
+    }finally{
+      _resetBtn();
+    }
+  }, 480);
+}
+$('gen').onclick=generate;
+$('story').addEventListener('input',function(){ $('charCount').textContent=$('story').value.length+' 字'; });
+$('story').addEventListener('keydown',function(e){ if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)) generate(); });
+
+/* ============================================================
+   AI-Talking API 接入
+   - 前端只做可视化操作台；分镜脚本计算交给外部 API
+   - 用户可自由编辑「镜头脚本提示词」，API 返回结构化 JSON
+   - 结果自动填充分镜 / 素材库 / 画布
+   ============================================================ */
+var API_LS='sugai_api_v1';
+var DEFAULT_API_PROMPT = [
+'你是资深漫剧分镜导演与分镜师，服务竖屏 9:16 漫剧（红果/抖音），用户是 30 分钟内要出片的小团队。任务：把用户给的小说/剧情片段，拆成可直接开拍、可直接喂文生图与图生视频的分镜脚本。',
+'',
+'【硬规则】',
+'- 只输出一个 JSON。不要 markdown 代码块标记，不要解释，不要前言后语，不要注释。',
+'- 不虚构原文没有的关键剧情与人物关系；信息不足时用最保守写法，不脑补。',
+'- 禁一切虚词与套话：有画面感、氛围感拉满、电影感、唯美、史诗感、令人震撼、情绪饱满、极具张力、美轮美奂。这些词一律不准出现在 summary/face/mood 里。',
+'',
+'【处理步骤】',
+'1. 剔水：删掉无画面、无信息、无冲突的套话与连接句（寒暄、心理复述、重复强调），只留推动剧情、暴露关系的动作与台词。',
+'2. 提炼 2~4 个核心看点，一句话一个，落在反转/冲突/信息钩子/金句台词上。',
+'3. 识别主要角色（主角优先）与场景；角色给 label 与 role（主角/配角）。',
+'4. 分镜：按画面变化与剧情推进自然切，不硬切；每镜 3~8 秒；镜数跟随剧情，不注水、不赶。',
+'',
+'【每镜必写 7 项，缺一不可】',
+'1. 主体：谁 + 具体动作 + 关键道具（手里拿什么、身上穿什么、背景有什么）。summary ≥45 字且必须含「材质/表面状态 + 一个环境层次（前中后景之一）」。',
+'2. 景别：大远景/远景/全景/中景/中近景/近景/特写/大特写，选一个。',
+'3. 机位高度：平视/俯拍/仰拍/鸟瞰/地面贴拍，选一个。',
+'4. 运镜方式与速度：固定/推/拉/摇/移/跟随/升降/手持微晃，配速度（极慢/慢/中/快/极快），例「缓慢推镜约 8cm/s」。',
+'5. 光影方向与软硬：光从哪来（侧逆/顺光/顶光/底光/窗光/屏幕光）+ 硬光/柔光 + 明暗比例，例「左侧冷柜硬光，面部半明半暗」。',
+'6. 色调：冷暖倾向 + 饱和度 + 对比，例「冷青灰、低饱和、高对比」。',
+'7. 情绪：具体情绪词（压抑/警觉/松动/挑衅/崩溃前兆），不写「很感动」。',
+'每镜输出前自检三宽度：景别是否明确、运镜幅度是否写明速度、信息密度是否含≥2 个具体物象；缺任一则重写该镜。',
+'',
+'【表演单列】face 写眼神落点、嘴角/下颌、呼吸/肩背、手指小动作，四选二以上，要能拍到。',
+'',
+'【对白克制】',
+'- 能靠画面与动作讲清的，不写台词，line 写 "" 或旁白。',
+'- 保留的台词必须承担钩子、反转、金句功能；单镜 ≤14 字；口语、可念、带信息。',
+'- 相邻两镜不要都是台词；台词镜之间至少隔一个纯画面镜。',
+'- 相邻台词镜的 line 不得共享 ≥3 字连续子串；若共享，后一镜改为零台词（画面替代）。',
+'- line 允许结尾 … 表示未完待续，开头 （停） 表示前置停顿供配音断句。',
+'输出前逐镜自检：① line 超 14 字 → 拆成两镜或砍到 ≤14；② 连续两镜都有台词 → 后一镜 line 改 ""；③ 末镜 line 必须含未答问题或未说完的话（省略号、反问、半句），不允许结论式陈述。任一不满足则重写该镜。',
+'',
+'【信息与张力】',
+'- 每镜的信息量或张力要比上一镜多一点（新信息/新威胁/新关系/新道具/新表情），不原地打转。',
+'- 前一镜留半句或动作未完，后一镜接住或反打；最后一镜必须留钩（未答的问题、未露的脸、未落下的手、未说完的话）。',
+'',
+'【机位与节拍】',
+'- beat 取：开场钩子 / 冲突推进 / 情绪高潮 / 情绪反转 / 收束转折 / 反转留钩。首镜「开场钩子」，末镜「反转留钩」。',
+'- 相邻镜头不要重复同一「景别+机位高度」组合；同场景内至少换一次景别跨度。',
+'',
+'【输出 JSON 结构，字段名不得改、不得嵌套】',
+'{"genre":"题材","style":"画风","grade":"影调质感","ratio":"9:16","dur":5,"roles":[{"label":"角色名","role":"主角/配角"}],"scenes":["场景名"],"highlights":[{"lbl":"看点类型","s":"一句话"}],"shots":[{"no":1,"beat":"节拍","cam":"景别 · 机位高度 · 运镜方式与速度","summary":"主体+动作+关键道具+环境层次，可直接做文生图主体","line":"台词或空字符串","scene":"场景","light":"光从哪来+软硬+明暗+色调","env":"环境动态（风/雨/烟/人群/光斑/水面）","mood":"具体情绪","face":"眼神+嘴角+呼吸+手部小动作","dur":5}]}',
+'',
+'【few-shot 示例镜，照此密度写每一镜】',
+'{"no":1,"beat":"开场钩子","cam":"近景 · 平视 · 缓慢推镜约8cm/s","summary":"林晚站在24小时便利店的冷柜前，右手攥着一张揉皱的孕检单，指节发白，指尖把纸边压出折痕；冷柜蓝白硬光从左侧打亮她半张脸，右脸沉在暗部；玻璃门外雨幕连片，一辆车灯扫过，光从她颧骨掠过。","line":"……两条杠。","scene":"24小时便利店","light":"左侧冷柜冷白硬光，面部半明半暗，背景压暗；冷青灰、低饱和、高对比","env":"门外雨斜落，车灯扫掠，冷柜低频嗡鸣","mood":"压着的慌，悬而未决","face":"眼睛向下盯单子、不眨，下唇轻颤，肩背绷直，拇指反复搓纸边","dur":5}',
+'',
+'现在按上述结构与密度输出 JSON。'
+].join('\n');
+
+function apiCfgLoad(){
+  try{ var raw=localStorage.getItem(API_LS); return raw?JSON.parse(raw):{}; }catch(e){ return {}; }
+}
+function apiCfgSave(){
+  try{
+    localStorage.setItem(API_LS, JSON.stringify({
+      url:$('apiUrl').value.trim(), model:$('apiModel').value.trim(),
+      key:$('apiKey').value.trim(), prompt:$('apiPrompt').value
+    }));
+  }catch(e){}
+}
+function apiStatus(msg, cls){
+  var el=$('apiStatus'); el.textContent=msg; el.className='api-status'+(cls?(' '+cls):'');
+}
+/* 从 API 返回文本中稳健地提取 JSON 对象 */
+function extractJSON(text){
+  if(!text) return null;
+  var s=String(text).trim();
+  // 1) 整段就是 JSON
+  try{ return JSON.parse(s); }catch(e){}
+  // 2) ```json ... ``` 包裹
+  var m=s.match(/```(?:json|JSON)?\s*([\s\S]*?)\s*```/);
+  if(m){ try{ return JSON.parse(m[1]); }catch(e){} }
+  // 3) 花括号配对扫描（处理嵌套对象/字符串内括号）
+  var start=s.indexOf('{');
+  while(start>-1){
+    var depth=0, inStr=false, esc=false, end=-1;
+    for(var i=start;i<s.length;i++){
+      var ch=s[i];
+      if(inStr){
+        if(esc){ esc=false; }
+        else if(ch==='\\'){ esc=true; }
+        else if(ch==='"'){ inStr=false; }
+      } else {
+        if(ch==='"'){ inStr=true; }
+        else if(ch==='{'){ depth++; }
+        else if(ch==='}'){ depth--; if(depth===0){ end=i; break; } }
+      }
+    }
+    if(end>-1){
+      var slice=s.slice(start,end+1);
+      try{ return JSON.parse(slice); }catch(e){}
+      // 尝试修掉尾逗号
+      try{ return JSON.parse(slice.replace(/,\s*([}\]])/g,'$1')); }catch(e){}
+    }
+    start=s.indexOf('{',start+1);
+  }
+  return null;
+}
+function normalizeShot(sh, i, ctx){
+  var g=ctx.genre, st=STYLES[g]||STYLES['都市职场'];
+  var ratio=ctx.ratio||'9:16', dur=sh.dur||ctx.dur||5;
+  var line=sh.line||sh.台词||sh.subtitle||sh.text||'';
+  var lineT=String(line).replace(/[。！？；，,、\s]+$/,'');
+  var variants=[line];
+  if(lineT.length>16) variants.push(cutLine(lineT,16));
+  if(OPENERS[g]) variants.push(OPENERS[g]);
+  var scene=sh.scene||ctx.scene||'按剧情自设';
+  var sceneRow=null;
+  SCENES.forEach(function(r){ if(scene.indexOf(r.scene)>-1||r.scene.indexOf(scene)>-1) sceneRow=r; });
+  return {
+    no:i+1, beat:sh.beat||'冲突推进', cam:sh.cam||'中景 · 固定机位', camIdx:0,
+    summary:sh.summary||sh.画面||sh.desc||sh.description||'',
+    line:line, lines:variants, lineIdx:0,
+    subtitle:cutLine(lineT,26),
+    dur:dur, scene:scene,
+    light:sh.light||sh.光照||(sceneRow?sceneRow.light:''),
+    env:sh.env||sh.环境||(sceneRow?sceneRow.env:'风动发梢、光影自然流转'),
+    mood:sh.mood||sh.情绪||'自然情绪',
+    face:sh.face||sh.表演||'人物表演自然、真实',
+    genre:g, st:st, ratioText:(ratio==='16:9'?'横屏 16:9':ratio==='1:1'?'方形 1:1':'竖屏 9:16'), ratio:ratio
+  };
+}
+function applyApiResult(obj){
+  var g=obj.genre||detectGenre(state.story||'');
+  var shotsRaw=(obj.shots||obj.镜头||[]);
+  var ratio=$('ratio').value||'9:16';
+  var dur=obj.dur||parseInt($('len').value,10)||5;
+  var ctx={genre:g, ratio:ratio, dur:dur, scene:(obj.scenes||[])[0]||''};
+  if(!shotsRaw.length && obj.shot_list) shotsRaw=obj.shot_list;
+  if(!shotsRaw.length && obj.scripts) shotsRaw=obj.scripts;
+  state.shots=shotsRaw.map(function(sh,i){ return normalizeShot(sh,i,ctx); });
+  state.genre=g;
+  state.st=STYLES[g]||STYLES['都市职场'];
+  state.scene=ctx.scene||'通用';
+  state.ratioText=state.shots[0]?state.shots[0].ratioText:(ratio==='16:9'?'横屏 16:9':'竖屏 9:16');
+  state.ratio=ratio; state.dur=dur;
+  state.roles=(obj.roles||[]).map(function(r){ return {label:r.label||r.名字||'角色', role:r.role||'配角'}; });
+  if(!state.roles.length) state.roles=extractRoles(state.story||'');
+  state.scenes=(obj.scenes||[]).map(String);
+  if(!state.scenes.length) state.scenes=extractScenes(splitSentences(state.story||''));
+  state.highlights=(obj.highlights||[]).map(function(h){ return {lbl:h.lbl||h.type||'核心情节', s:h.s||h.text||h.点||''}; });
+  if(!state.highlights.length) state.highlights=extractHighlights(state.shots.map(function(s){return s.summary;})).map(function(x){return {lbl:x.lbl,s:x.s};});
+  state.waterRemoved=(obj.waterRemoved||obj.剔水||0);
+}
+function aiGenerate(){
+  var story=$('story').value.trim();
+  if(story.length<10){ toast('先粘贴一段小说（至少 10 个字）'); $('story').focus(); return; }
+  var url=$('apiUrl').value.trim(), key=$('apiKey').value.trim();
+  if(!url) url='https://api.deepseek.com/chat/completions'; // 留空默认 DeepSeek
+  if(!key){ apiStatus('请填写你的 Token（API 地址留空会自动用默认）','err'); return; }
+  var model=$('apiModel').value.trim()||'deepseek-chat';
+  var prompt=$('apiPrompt').value.trim();
+  if(!prompt){ apiStatus('镜头脚本提示词为空，请填写或使用默认模板','err'); return; }
+  var btn=$('aiGen'), statusEl=$('apiStatus');
+  btn.disabled=true; btn.textContent='AI 生成中…';
+  /* 分段叙事进度：让用户在 15-40 秒等待期知道"它正在干活且干得很细" */
+  var AI_STAGES=['正在解析人物与场景…','正在剔水、压缩信息…','正在切分镜头节奏…','正在校对风格一致性…'];
+  var stIdx=0; statusEl.textContent='正在调用 '+model+'：'+AI_STAGES[0]+'（约 15–40 秒）';
+  var _stTimer=setInterval(function(){ stIdx=(stIdx+1)%AI_STAGES.length; statusEl.textContent='正在调用 '+model+'：'+AI_STAGES[stIdx]+'（约 15–40 秒）'; },4000);
+  function _stClear(){ clearInterval(_stTimer); }
+  var body={
+    model:model,
+    messages:[
+      {role:'system', content:prompt},
+      {role:'user', content:'小说片段：\n'+story}
+    ],
+    temperature:0.7, max_tokens:8192
+  };
+  state._apiCtx={url:url,key:key,model:model,prompt:prompt,story:story,messages:body.messages};
+  fetch(url,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+    body:JSON.stringify(body)
+  }).then(function(res){
+    if(!res.ok){
+      return res.text().then(function(t){
+        var msg='';
+        if(res.status===401||res.status===403) msg='Token 无效或已过期（'+res.status+'）。请检查 Token 是否复制完整、有没有多余空格。';
+        else if(res.status===404) msg='接口地址不对（404）。留空用默认 DeepSeek，或检查 API 地址结尾是否有 /chat/completions。';
+        else if(res.status===429) msg='请求太频繁或余额不足（429）。等 10 秒再试，或检查 DeepSeek 账户余额。';
+        else if(res.status>=500) msg='AI 服务器开小差了（'+res.status+'）。稍后重试。';
+        else msg='请求失败（'+res.status+'）：'+(t||'').slice(0,120);
+        throw new Error(msg);
+      });
+    }
+    return res.json();
+  }).then(function(data){
+    var choice=data && data.choices && data.choices[0];
+    var content = choice && choice.message && choice.message.content;
+    var fr = choice && choice.finish_reason;
+    if(!content){ throw new Error('AI 没返回内容。可能是模型名写错了，或账户额度用尽。'); }
+    var obj=extractJSON(content);
+    if(!obj){ throw new Error('AI 返回的内容没法解析成 JSON。通常是提示词被改过——点「恢复默认提示词」再试。原始开头：'+String(content).slice(0,120)); }
+    state.story=story;
+    applyApiResult(obj);
+    renderAll();
+    $('output').classList.add('show');
+    if(fr==='length'){
+      apiStatus('输出被截断（已出 '+state.shots.length+' 镜）。点「续写剩余分镜」继续。','err');
+      var cb=$('contBtn'); if(cb){ cb.style.display='inline-flex'; }
+    } else {
+      $('contBtn').style.display='none';
+      apiStatus('已生成 '+state.shots.length+' 镜分镜 · 看点 '+state.highlights.length+' · 素材与画布已填充','ok');
+    }
+    apiCfgSave();
+    toast('AI 已生成 '+state.shots.length+' 镜分镜 → 下一步：逐镜复制提示词去即梦出图');
+  }).catch(function(err){
+    var m=err&&err.message||String(err);
+    if(/Failed to fetch|NetworkError|LOAD_FAILED|网络|fetch/i.test(m)){
+      apiStatus('网络连不上。检查：① 能不能打开 api.deepseek.com；② 地址有没有写错；③ 浏览器有没有跨域拦截。','err');
+    } else {
+      apiStatus(m,'err');
+    }
+    console.error(err);
+  }).finally(function(){
+    _stClear();
+    btn.disabled=false; btn.textContent='调用 AI 生成分镜';
+  });
+}
+/* API modal：打开 / 关闭 */
+(function(){
+  var modal=document.getElementById('apiModal');
+  var openBtn=document.getElementById('openApiNav');
+  var closeBtn=document.getElementById('closeApiNav');
+  if(openBtn) openBtn.onclick=function(){ modal.classList.add('open'); };
+  if(closeBtn) closeBtn.onclick=function(){ modal.classList.remove('open'); };
+  if(modal) modal.addEventListener('click',function(e){ if(e.target===modal) modal.classList.remove('open'); });
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&modal) modal.classList.remove('open'); });
+})();
+(function initApi(){
+  var cfg=apiCfgLoad();
+  if(cfg.url) $('apiUrl').value=cfg.url;
+  if(cfg.model) $('apiModel').value=cfg.model;
+  if(cfg.key) $('apiKey').value=cfg.key;
+  $('apiPrompt').value=cfg.prompt||DEFAULT_API_PROMPT;
+  $('aiGen').onclick=aiGenerate;
+  $('resetPrompt').onclick=function(){ $('apiPrompt').value=DEFAULT_API_PROMPT; apiCfgSave(); toast('已恢复默认导演提示词'); };
+  /* CH-25: aiGen 未填 Key 时 disabled */
+  function _refreshAiBtn(){
+    var hasKey=$('apiKey').value.trim().length>0;
+    $('aiGen').disabled=!hasKey;
+    $('aiGen').title=hasKey?'':'填写 Token 后启用';
+  }
+  $('apiKey').addEventListener('input',_refreshAiBtn);
+  _refreshAiBtn();
+  $('contBtn').onclick=function(){
+    var ctx=state._apiCtx; if(!ctx){ toast('请先点「调用 AI 生成分镜」'); return; }
+    var btn=$('aiGen'); btn.disabled=true; btn.textContent='续写中…';
+    apiStatus('正在续写剩余分镜…');
+    var lastNo=state.shots.length;
+    var head={genre:state.genre,style:(state.st&&state.st.style)||'',grade:(state.st&&state.st.grade)||'',ratio:state.ratio,roles:state.roles,scenes:state.scenes};
+    var tail=state.shots.slice(-2).map(function(s){
+      return {no:s.no,cam:s.cam,scene:s.scene,summary:s.summary,line:s.line,face:s.face};
+    });
+    var msgs=ctx.messages.concat([
+      {role:'assistant',content:JSON.stringify({lock:head,recent:tail})},
+      {role:'user',content:'续写第 '+(lastNo+1)+' 镜起，只输出 {"shots":[...]}，沿用 lock 的角色/场景/服装/光位，recent 仅用于衔接，不重复。若 lock.roles 有角色，新镜只许使用这些 label；场景优先取 lock.scenes；禁止新增主角，新增配角须在 json 顶层 newRoles 单列。'}
+    ]);
+    fetch(ctx.url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+ctx.key},body:JSON.stringify({model:ctx.model,messages:msgs,temperature:0.7,max_tokens:8192})})
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(data){
+      var ch=data&&data.choices&&data.choices[0];
+      var c=ch&&ch.message&&ch.message.content;
+      if(!c) throw new Error('续写返回为空');
+      var obj=extractJSON(c);
+      if(!obj||!obj.shots) throw new Error('续写 JSON 解析失败');
+      var ctx2={genre:state.genre,ratio:state.ratio,dur:state.dur,scene:state.scene};
+      var more=obj.shots.map(function(sh,i){ var n=normalizeShot(sh,state.shots.length+i,ctx2); n.no=state.shots.length+i+1; return n; });
+      state.shots=state.shots.concat(more);
+      renderAll();
+      apiStatus('续写完成，现共 '+state.shots.length+' 镜'+(ch.finish_reason==='length'?'（仍可能截断，可再续写）':''),'ok');
+      if(ch.finish_reason!=='length') $('contBtn').style.display='none';
+      toast('续写了 '+more.length+' 镜 → 共 '+state.shots.length+' 镜');
+    }).catch(function(e){ apiStatus('续写失败：'+e.message,'err'); })
+    .finally(function(){ btn.disabled=false; btn.textContent='调用 AI 生成分镜'; });
+  };
+})();
+
+/* ---------- DS-25: undo 历史栈 ---------- */
+function pushHistory(){
+  try{
+    state.history.push(JSON.stringify(state.shots));
+    if(state.history.length>20) state.history.shift();
+  }catch(_){}
+}
+function undo(){
+  if(!state.history.length){ toast('没有可撤销的操作'); return; }
+  var prev=state.history.pop();
+  try{
+    state.shots=JSON.parse(prev);
+    renderAll();
+    toast('已撤销上一步');
+  }catch(_){}
+}
+document.addEventListener('keydown',function(e){
+  var tag=(e.target&&e.target.tagName||'').toLowerCase();
+  if(tag==='textarea'||tag==='input'||tag==='select'||(e.target&&e.target.isContentEditable)) return;
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){ e.preventDefault(); undo(); }
+});
+
+/* ---------- 记住上次输入 ---------- */
+function savePrefs(story,style,count,ratio,dur){
+  try{ localStorage.setItem(LS_KEY, JSON.stringify({story:story,style:style,count:String(count),ratio:ratio,len:String(dur)})); }catch(e){}
+}
+function restorePrefs(){
+  try{
+    var raw=localStorage.getItem(LS_KEY); if(!raw) return;
+    var p=JSON.parse(raw);
+    if(p.story){ $('story').value=p.story; $('charCount').textContent=p.story.length+' 字'; }
+    if(p.style) $('style').value=p.style;
+    if(p.count) $('count').value=p.count;
+    if(p.ratio) $('ratio').value=p.ratio;
+    if(p.len) $('len').value=p.len;
+  }catch(e){}
+}
+
+/* ---------- 示例 chips ---------- */
+EXAMPLES.forEach(function(ex){
+  var b=document.createElement('button'); b.className='ex'; b.textContent=ex.label;
+  b.onclick=function(){ $('story').value=ex.text; $('charCount').textContent=ex.text.length+' 字'; $('style').value=ex.style; toast('已填入示例，点「生成」试试'); };
+  $('examples').appendChild(b);
+});
+
+/* ---------- 复制分镜脚本 / 复制全部 / 下载 ---------- */
+$('copyScript').onclick=function(){
+  if(!state.shots.length){toast('先生成一次分镜');return;}
+  var txt='【'+state.genre+' · '+state.shots.length+' 镜漫剧分镜】场景：'+state.scene+' · 约'+totalDur(state.shots)+'s\n\n';
+  state.shots.forEach(function(s,i){ txt+='镜'+(i+1)+' · '+s.beat+' · '+s.cam+' · '+s.dur+'s\n台词：'+s.line+'\n\n'; });
+  copyText(txt,function(){toast('分镜脚本已复制 → 可粘到备忘录对照用'); setCopied($('copyScript'),'已复制');});
+};
+$('copyAll').onclick=function(){
+  if(!state.shots.length){toast('先生成一次分镜');return;}
+  var txt=state.shots.map(function(s,i){
+    return '【镜 '+(i+1)+' · '+s.beat+'】\n[静态分镜图] '+makeImagePrompt(s)+'\n[图生视频] '+makeVideoPrompt(s);
+  }).join('\n\n');
+  var chars=txt.length;
+  copyText(txt,function(){toast('已复制全部 '+state.shots.length+' 镜提示词（约'+chars+'字）→ 逐镜粘到即梦/可灵出图'); setCopied($('copyAll'),'已复制');});
+};
+$('download').onclick=function(){
+  if(!state.shots.length){toast('先生成一次分镜');return;}
+  var lockLines=[];
+  lockLines.push('LOCK:');
+  lockLines.push('- style: '+(state.st&&state.st.style||'未指定'));
+  lockLines.push('- grade: '+(state.st&&state.st.grade||'未指定'));
+  if(state.roles&&state.roles.length){
+    state.roles.forEach(function(r,i){
+      var f=r.fp||{};
+      lockLines.push('- role: '+r.label+' | seed:'+(r.seed||'auto')+' | hair:'+(f.hair||'')+' face:'+(f.face||'')+' body:'+(f.body||'')+' outfit:'+(f.outfit||'')+' #'+(f.outfitId||'01')+' mark:'+(f.mark||''));
+    });
+  }
+  if(state.scenes&&state.scenes.length) lockLines.push('- scenes: '+state.scenes.join(' / '));
+  var md='# '+state.genre+' · '+state.shots.length+' 镜漫剧分镜\n\n'
+    +lockLines.join('\n')+'\n\n---\n\n'
+    +'- 画风：'+((state.st&&state.st.style)||'未指定')+'\n'
+    +'- 影调：'+((state.st&&state.st.grade)||'未指定')+'\n'
+    +'- 场景：'+state.scene+'　总时长：约'+totalDur(state.shots)+'秒　画幅：'+state.ratioText
+    +(state.waterRemoved?'　已剔水 '+state.waterRemoved+' 句':'')+'\n\n'
+    +'## 核心看点\n\n'+state.highlights.map(function(h){return '- ['+h.lbl+'] '+h.s;}).join('\n')+'\n\n'
+    +'## 角色\n\n'+state.roles.map(function(r){return '- '+r.label+'（'+r.role+'）';}).join('\n')+'\n\n'
+    +'## 场景\n\n'+state.scenes.map(function(x){return '- '+x;}).join('\n')+'\n\n---\n\n';
+  state.shots.forEach(function(s,i){
+    md+='## 镜 '+(i+1)+' · '+s.beat+'（'+s.cam+'，约'+s.dur+'s）\n\n'
+      +'- 画面：'+s.summary+'\n- 台词/字幕：'+s.line+'\n- 静态分镜图提示词：'+makeImagePrompt(s)+'\n- 图生视频提示词：'+makeVideoPrompt(s)+'\n\n';
+  });
+  md+='\n> 由 秒视 AI 生成 · 演示版本';
+  var blob=new Blob([md],{type:'text/markdown;charset=utf-8'});
+  var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='漫剧分镜-'+Date.now()+'.md';
+  document.body.appendChild(a); a.click(); setTimeout(function(){URL.revokeObjectURL(a.href);document.body.removeChild(a);},200);
+  toast('已下载 .md 分镜文档');
+};
+
+/* ---------- 侧栏子 tabs（脚本/看点/提示词/对白/发布/镜头） ---------- */
+document.querySelectorAll('.otab').forEach(function(b){
+  b.onclick=function(){
+    document.querySelectorAll('.otab').forEach(function(x){x.classList.remove('on');});
+    b.classList.add('on');
+    var t=b.getAttribute('data-t');
+    document.querySelectorAll('.out-panel').forEach(function(p){p.classList.toggle('on',p.getAttribute('data-p')===t);});
+    if(t==='lens' && typeof renderLens==='function' && !document.getElementById('panelLens')._rendered){
+      renderLens(); document.getElementById('panelLens')._rendered=1;
+    }
+  };
+});
+
+/* ---------- R4: 视图路由（landing ↔ studio ↔ canvas） ---------- */
+function setNavTab(mode){
+  document.querySelectorAll('.nav .ntab').forEach(function(a){
+    a.classList.toggle('on', a.getAttribute('data-view')===mode);
+  });
+}
+function showView(mode){
+  if(mode==='landing'){
+    document.body.classList.remove('inside','canvas-mode');
+    setNavTab('landing');
+    window.scrollTo(0,0);
+    return;
+  }
+  /* workbench：进入工作台（3/4 画布 + 1/4 侧栏） */
+  document.body.classList.add('inside');
+  document.body.classList.remove('canvas-mode');
+  setNavTab('workbench');
+  /* R4(DS评审): 用 ResizeObserver 在画布容器尺寸从 0→非0 时重绘，替代魔法 setTimeout */
+  var host=document.querySelector('.canvas-host');
+  function repaint(){
+    var pc=document.getElementById('panelCanvas');
+    if(pc && pc._wb){ layoutColumns(pc); applyWbTransform(pc); drawLinks(pc); drawMinimap(pc); }
+    else if(state.shots && state.shots.length){ renderCanvas(); }
+  }
+  if('ResizeObserver' in window && host){
+    if(showView._ro) showView._ro.disconnect();
+    showView._ro=new ResizeObserver(function(){ repaint(); });
+    showView._ro.observe(host);
+  } else {
+    requestAnimationFrame(repaint);
+  }
+}
+document.querySelectorAll('[data-view]').forEach(function(el){
+  el.onclick=function(e){ e.preventDefault(); showView(el.getAttribute('data-view')); };
+});
+/* logo = 回首页（等同刷新网站） */
+(function(){
+  var br=document.getElementById('brandHome');
+  function go(){ showView('landing'); }
+  if(br){ br.addEventListener('click',go); br.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){e.preventDefault();go();} }); }
+})();
+document.querySelectorAll('[data-go]').forEach(function(el){
+  el.onclick=function(){
+    /* 回到 landing 视图再滚动定位 */
+    document.body.classList.remove('inside','canvas-mode');
+    setNavTab('');
+    var t=document.querySelector(el.getAttribute('data-go'));
+    if(t) setTimeout(function(){ t.scrollIntoView({behavior:'smooth'}); },30);
+  };
+});
+
+/* ---------- 快捷键（带焦点守卫，不劫持输入框） ---------- */
+document.addEventListener('keydown',function(e){
+  var tag=(e.target&&e.target.tagName||'').toLowerCase();
+  if(tag==='textarea'||tag==='input'||tag==='select'||(e.target&&e.target.isContentEditable)) return;
+  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ e.preventDefault(); $('gen').click(); }
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='c'){
+    var sel=window.getSelection&&window.getSelection().toString();
+    if(!sel && state.shots && state.shots.length){ e.preventDefault(); $('copyAll').click(); }
+  }
+});
+
+/* ---------- toast + 启动 ---------- */
+var toastEl=document.createElement('div'); toastEl.className='toast'; toastEl.id='toast'; document.body.appendChild(toastEl);
+
+/* ---------- 返回顶部 ---------- */
+var toTop=$('toTop');
+window.addEventListener('scroll',function(){
+  toTop.classList.toggle('show', (window.scrollY||document.documentElement.scrollTop)>560);
+},{passive:true});
+toTop.onclick=function(){ window.scrollTo({top:0,behavior:'smooth'}); };
+
+/* ---------- 滚动显现（豆包官网风） + 导航滚动静影 ---------- */
+(function(){
+  var nv=document.querySelector('nav');
+  function onScroll(){ if(nv) nv.classList.toggle('scrolled',(window.scrollY||document.documentElement.scrollTop)>8); }
+  window.addEventListener('scroll',onScroll,{passive:true}); onScroll();
+  var els=document.querySelectorAll('.rv');
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){
+      es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+    },{threshold:.12, rootMargin:'0px 0px -6% 0px'});
+    els.forEach(function(el){io.observe(el);});
+  } else { els.forEach(function(el){el.classList.add('in');}); }
+})();
+
+restorePrefs();
+</script>
+</body>
+</html>
